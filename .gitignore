@@ -2,3 +2,6 @@
 _offline-test.html
 *.signet.json
 *signed.pdf
+
+# contains the real sender passphrase - never commit
+supabase/schema.local.sql

@@ -75,7 +75,7 @@ language sql stable as $$
 $$;
 
 create or replace function check_key(p_key text) returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare v_hash text;
 begin
   select key_hash into v_hash from config where id = 1;
@@ -102,7 +102,7 @@ create or replace function sg_create(
   p_doc          jsonb,
   p_user_agent   text
 ) returns text
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare v_id text;
 begin
   perform check_key(p_key);
@@ -122,7 +122,7 @@ end $$;
 -- Fetch an envelope for signing, and record that it was opened.
 create or replace function sg_open(p_id text, p_user_agent text)
 returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare e envelopes;
 begin
   select * into e from envelopes where id = p_id;
@@ -154,7 +154,7 @@ create or replace function sg_sign(
   p_consent    text,
   p_user_agent text
 ) returns jsonb
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare
   e       envelopes;
   v_doc   jsonb;
@@ -216,7 +216,7 @@ end $$;
 -- Attach the finished PDF that the signer's browser produced.
 create or replace function sg_store_signed(p_id text, p_pdf_b64 text, p_sha256 text)
 returns void
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 begin
   update envelopes
      set signed_b64 = p_pdf_b64, signed_sha256 = p_sha256
@@ -226,7 +226,7 @@ end $$;
 -- Status of the envelopes whose ids the caller already holds.
 create or replace function sg_status(p_ids text[])
 returns jsonb
-language sql security definer set search_path = public as $$
+language sql security definer set search_path = public, extensions as $$
   select coalesce(jsonb_agg(jsonb_build_object(
            'id',          id,
            'title',       title,
@@ -244,7 +244,7 @@ $$;
 
 create or replace function sg_signed(p_id text)
 returns jsonb
-language sql security definer set search_path = public as $$
+language sql security definer set search_path = public, extensions as $$
   select jsonb_build_object('pdf', signed_b64, 'sha256', signed_sha256, 'title', title)
   from envelopes where id = p_id
 $$;
@@ -252,7 +252,7 @@ $$;
 -- The audit record used to build the certificate page.
 create or replace function sg_events(p_id text)
 returns jsonb
-language sql security definer set search_path = public as $$
+language sql security definer set search_path = public, extensions as $$
   select coalesce(jsonb_agg(jsonb_build_object(
            'at', at, 'ip', ip, 'kind', kind, 'actor', actor, 'ua', user_agent
          ) order by at), '[]'::jsonb)

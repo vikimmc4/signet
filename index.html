@@ -379,6 +379,27 @@ textarea.inp{resize:vertical;min-height:64px;line-height:1.5}
 }
 .hidden{display:none!important}
 
+.linkrow{display:flex;gap:8px}
+.linkrow .inp{flex:1;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+
+.sentbox{margin-top:30px;text-align:left;border-top:1px solid var(--line);padding-top:18px}
+.sentbox h3{
+  margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)
+}
+.sentlist{display:flex;flex-direction:column;gap:7px}
+.sentrow{
+  display:flex;align-items:center;gap:12px;padding:10px 13px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel)
+}
+.sentrow.clickable{cursor:pointer}
+.sentrow.clickable:hover{border-color:var(--accent);background:var(--accent-soft)}
+.sentrow .si{flex:1;min-width:0}
+.sentrow .si b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sentrow .si span{font-size:11.5px;color:var(--ink-3)}
+.pill{font-size:11px;font-weight:650;padding:3px 9px;border-radius:99px;white-space:nowrap}
+.pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.pill.wait{background:var(--line-2);color:var(--ink-3)}
+
 .orbar{display:flex;align-items:center;gap:12px;margin:16px 0 12px;color:var(--ink-3);font-size:12px}
 .orbar::before,.orbar::after{content:'';flex:1;height:1px;background:var(--line)}
 .linkish{
@@ -453,6 +474,7 @@ const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
 
 const TEXT_FONT = 'Helvetica, "Helvetica Neue", Arial, sans-serif';
+const MONO_FONT = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 const TYPES = {
   signature:{label:'Signature', icon:'✒️', w:180, h:52, ink:true},
@@ -523,6 +545,68 @@ function toast(msg, ms){
 }
 
 const TOUCH = window.matchMedia('(pointer:coarse)').matches;
+
+/* ---------------- backend ----------------
+   Supabase holds each envelope so a signer only ever needs a link. These two
+   values are public by design: every table has row-level security on with no
+   policies, so this key cannot read or write anything directly. All access
+   goes through the sg_* functions, each keyed by a 128-bit envelope id. */
+const SB_URL = 'https://zdsdamxezyxjtoqapnva.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6In' +
+               'pkc2RhbXhlenl4anRvcWFwbnZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1Mjc2NzgsImV4c' +
+               'CI6MjEwNDEwMzY3OH0.PU6-bL2UEfzo63i9LLFnaiqyydOG6gLfYe9EIcx6lGc';
+
+async function rpc(fn, args){
+  const send = () => fetch(SB_URL + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: {apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY, 'Content-Type': 'application/json'},
+    body: JSON.stringify(args || {})
+  });
+  // The first request of a session can lose a race with page load or a cold
+  // connection. Retry a transport failure once; never retry a real HTTP error,
+  // which would risk sending a signature twice.
+  let res;
+  try { res = await send(); }
+  catch(e){
+    await new Promise(r => setTimeout(r, 700));
+    try { res = await send(); }
+    catch(e2){ throw new Error('Could not reach the server. Check your connection and try again.'); }
+  }
+  const text = await res.text();
+  if (!res.ok){
+    let msg = 'Server error ' + res.status;
+    try { msg = JSON.parse(text).message || msg; } catch(_){}
+    throw new Error(msg);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+async function sha256Hex(bytes){
+  const buf = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+/* Group a hash into readable blocks — an unbroken 64-char string is unusable
+   for the eyeball comparison a fingerprint exists to support. */
+function fmtHash(h){ return (h || '').replace(/(.{8})/g, '$1 ').trim(); }
+
+/* Raw user-agent strings are noise on a certificate. Name the browser and
+   platform, and keep the original only where it is actually useful. */
+function readableAgent(ua){
+  if (!ua) return 'Unknown device';
+  const br = /Edg\//.test(ua)                        ? 'Edge'
+           : /OPR\//.test(ua)                        ? 'Opera'
+           : /Firefox\/(\d+)/.test(ua)               ? 'Firefox ' + RegExp.$1
+           : /Chrome\/(\d+)/.test(ua)                ? 'Chrome ' + RegExp.$1
+           : /Version\/(\d+).*Safari/.test(ua)       ? 'Safari ' + RegExp.$1
+           : /Safari/.test(ua)                       ? 'Safari' : 'Browser';
+  const os = /iPhone/.test(ua)                       ? 'iPhone'
+           : /iPad/.test(ua)                         ? 'iPad'
+           : /Android[ /]([\d.]+)/.test(ua)          ? 'Android ' + RegExp.$1
+           : /Windows NT 10/.test(ua)                ? 'Windows'
+           : /Mac OS X/.test(ua)                     ? 'Mac'
+           : /Linux/.test(ua)                        ? 'Linux' : 'Unknown OS';
+  return br + ' on ' + os;
+}
 
 /* On a phone a downloaded file is awkward to find and attach, so offer the
    OS share sheet (Mail, WhatsApp, Files…) when the browser supports sharing
@@ -693,80 +777,134 @@ async function auditPng(doc, W, H){
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
   g.scale(S, S);
 
-  const M = 58;
+  const M = 52;
+  const R = W - M;
   let y = M + 6;
   const F = (sz, wt) => (wt ? wt + ' ' : '') + sz + 'px ' + TEXT_FONT;
 
-  g.fillStyle = '#4f46e5';
-  g.fillRect(M, y - 16, 26, 4);
-  y += 14;
+  g.fillStyle = '#4f46e5'; g.fillRect(M, y - 16, 26, 4); y += 14;
   g.fillStyle = '#0f1720'; g.font = F(19, '600');
-  g.fillText('Certificate of Completion', M, y);
-  y += 20;
-  g.fillStyle = '#6b7480'; g.font = F(10.5);
-  g.fillText('Generated by Signet · self-contained electronic signature record', M, y);
-  y += 26;
+  g.fillText('Certificate of Completion', M, y); y += 19;
+  g.fillStyle = '#6b7480'; g.font = F(10);
+  g.fillText('Electronic signature record generated by Signet', M, y); y += 22;
 
-  const line = () => { g.strokeStyle = '#e3e7ec'; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(M, y); g.lineTo(W - M, y); g.stroke(); y += 18; };
-  const kv = (k, v) => {
-    g.fillStyle = '#6b7480'; g.font = F(10);
-    g.fillText(String(k).toUpperCase(), M, y);
-    g.fillStyle = '#0f1720'; g.font = F(11.5);
-    const words = String(v == null ? '—' : v).split(/\s+/);
-    let ln = '', yy = y;
-    const maxw = W - M - (M + 138);
+  const rule = () => { g.strokeStyle = '#e3e7ec'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(M, y); g.lineTo(R, y); g.stroke(); y += 15; };
+
+  const wrap = (text, x, maxw, lh) => {
+    const words = String(text).split(/\s+/);
+    let ln = '';
     for (const w of words){
       const t = ln ? ln + ' ' + w : w;
-      if (g.measureText(t).width > maxw && ln){ g.fillText(ln, M + 138, yy); yy += 15; ln = w; }
+      if (g.measureText(t).width > maxw && ln){ g.fillText(ln, x, y); y += lh; ln = w; }
       else ln = t;
     }
-    g.fillText(ln, M + 138, yy);
-    y = yy + 19;
+    if (ln){ g.fillText(ln, x, y); y += lh; }
   };
 
-  line();
-  kv('Document', doc.title);
-  kv('Envelope ID', doc.id);
-  kv('Pages', doc.pageCount + (doc.pageCount === 1 ? ' page' : ' pages'));
-  kv('Created', fmtStamp(doc.createdAt));
-  kv('Sender', (doc.sender.name || '—') + (doc.sender.email ? '  ·  ' + doc.sender.email : ''));
-  line();
+  const KX = M + 118;
+  const kv = (k, v, mono) => {
+    g.fillStyle = '#6b7480'; g.font = F(9.5);
+    g.fillText(String(k).toUpperCase(), M, y);
+    g.fillStyle = '#0f1720'; g.font = mono ? '10.5px ' + MONO_FONT : F(11);
+    const save = y;
+    wrap(v == null || v === '' ? '—' : v, KX, R - KX, 13);
+    y = Math.max(y, save + 13) + 4;
+  };
 
-  g.fillStyle = '#0f1720'; g.font = F(12.5, '600');
-  g.fillText('Signers', M, y); y += 20;
+  rule();
+  kv('Document', doc.title);
+  kv('Envelope ID', doc.id || doc.envelope, true);
+  kv('Pages', doc.pageCount + (doc.pageCount === 1 ? ' page' : ' pages'));
+  kv('Sender', (doc.sender.name || '—') + (doc.sender.email ? '  ·  ' + doc.sender.email : ''));
+  kv('Created', fmtStamp(doc.createdAt));
+  // The fingerprint is what makes this record checkable: re-hash the original
+  // and it must match, or the document is not the one that was signed.
+  kv('Original SHA-256', fmtHash(doc.pdfSha256), true);
+  rule();
+
+  g.fillStyle = '#0f1720'; g.font = F(12, '600');
+  g.fillText('Signers', M, y); y += 17;
 
   for (const s of doc.signers){
     const fc = doc.fields.filter(f => f.signer === s.id).length;
     if (!fc && !s.signedAt) continue;
+    if (y > H - 190) break;
+
     g.fillStyle = s.color || '#4f46e5';
     g.beginPath(); g.arc(M + 4, y - 4, 4, 0, 6.284); g.fill();
+
     g.fillStyle = '#0f1720'; g.font = F(11.5, '600');
-    g.fillText(s.name || 'Unnamed signer', M + 16, y);
-    g.fillStyle = '#6b7480'; g.font = F(10.5);
-    g.fillText(s.email || 'no email on file', M + 16, y + 14);
-    g.fillStyle = s.signedAt ? '#0f9d58' : '#b8860b';
-    g.font = F(10.5, '600');
-    g.fillText(s.signedAt ? 'Signed  ' + fmtStamp(s.signedAt) : 'Not signed',
-               M + 16, y + 28);
-    if (s.agent){
-      g.fillStyle = '#98a1ad'; g.font = F(8.5);
-      g.fillText(String(s.agent).slice(0, 110), M + 16, y + 40);
-      y += 10;
+    g.fillText(s.name || 'Unnamed signer', M + 15, y);
+    g.fillStyle = '#6b7480'; g.font = F(10);
+    g.fillText(s.email || 'no email on file', M + 15, y + 13);
+    y += 27;
+
+    const det = (k, v) => {
+      g.fillStyle = '#98a1ad'; g.font = F(9);
+      g.fillText(k, M + 15, y);
+      g.fillStyle = '#3d4753'; g.font = F(9.5);
+      g.fillText(v, M + 90, y);
+      y += 12;
+    };
+    if (s.signedAt){
+      g.fillStyle = '#0f9d58'; g.font = F(10, '600');
+      g.fillText('Signed', M + 15, y); y += 13;
+      det('Timestamp', fmtStamp(s.signedAt) + '   ·   ' + new Date(s.signedAt).toISOString());
+      det('IP address', s.ip || 'not recorded');
+      det('Device', readableAgent(s.agent));
+      det('Fields', fc + (fc === 1 ? ' field' : ' fields') + ' completed');
+      if (s.consent){
+        g.fillStyle = '#98a1ad'; g.font = F(9);
+        g.fillText('Consent', M + 15, y);
+        g.fillStyle = '#3d4753'; g.font = F(9);
+        const save = y; const kx = M + 90;
+        wrap('“' + s.consent + '”', kx, R - kx, 11);
+        y = Math.max(y, save + 11) + 2;
+      }
+    } else {
+      g.fillStyle = '#b8860b'; g.font = F(10, '600');
+      g.fillText('Not signed', M + 15, y); y += 13;
     }
-    y += 48;
-    if (y > H - 120){ break; }
+    y += 12;
   }
 
-  y = H - 92;
-  line();
-  g.fillStyle = '#98a1ad'; g.font = F(9);
+  // Server-side event log. Times here come from the database, so they are
+  // independent of whatever clock any signer's device happened to be set to.
+  const ev = Array.isArray(doc.events) ? doc.events : [];
+  if (ev.length && y < H - 150){
+    rule();
+    g.fillStyle = '#0f1720'; g.font = F(12, '600');
+    g.fillText('Audit trail', M, y); y += 16;
+    g.fillStyle = '#98a1ad'; g.font = F(8.5);
+    g.fillText('Recorded by the server, not by the signing device.', M, y); y += 14;
+
+    const LABEL = {created: 'Document created', opened: 'Opened for signing', signed: 'Signature applied'};
+    for (const e of ev){
+      if (y > H - 108) break;
+      g.fillStyle = '#3d4753'; g.font = F(9.5);
+      g.fillText(fmtStamp(e.at), M, y);
+      g.fillText(LABEL[e.kind] || e.kind, M + 152, y);
+      g.fillStyle = '#98a1ad';
+      g.fillText(e.ip || '—', M + 292, y);
+      g.fillText(readableAgent(e.ua), M + 372, y);
+      y += 12.5;
+    }
+  }
+
+  y = H - 78;
+  rule();
+  g.fillStyle = '#98a1ad'; g.font = F(8.5);
   const foot = [
-    'Each signature above was applied by the named signer in their own browser, on a copy of this',
-    'document delivered to them by the sender. Timestamps are taken from the signing device.',
-    'This certificate is informational and is not a substitute for a notarised or qualified signature.'
+    'Each signature above was applied by the named signer in their own browser. Timestamps and IP',
+    'addresses in the audit trail are recorded by the server at the moment of each action, not taken',
+    'from the signer’s device. To verify the document, hash the original PDF with SHA-256 and compare',
+    'it against the fingerprint above.',
+    '',
+    'This is an electronic signature record. It is not a qualified or notarised signature, and it carries',
+    'no cryptographic seal over the finished PDF.'
   ];
-  foot.forEach((t, i) => g.fillText(t, M, y + i * 12));
+  foot.forEach((t, i) => g.fillText(t, M, y + i * 10.5));
 
   return await canvasPng(c);
 }
@@ -934,7 +1072,7 @@ const store = {
 return {TYPES, COLORS, PDFJS_WORKER, TEXT_FONT, uid, esc, clamp, fmtDate, fmtStamp, isEmail,
         bytesToB64, b64ToBytes, download, safeName, toast, loadImg, canvasPng,
         openPdf, pageGeometry, renderPageTo, fieldPng, auditPng, anchorFor, hasValue, libWarning,
-        TOUCH, shareOrDownload, canShareFile,
+        TOUCH, shareOrDownload, canShareFile, rpc, sha256Hex, fmtHash, readableAgent,
         buildSignedPdf, makePad, typedSignature, cleanUpload, store};
 })();
 </script>
@@ -1271,10 +1409,39 @@ function confirmFinish(){
   };
 }
 
+const CONSENT_TEXT =
+  'I agree to sign this document electronically, and I accept that my ' +
+  'electronic signature is as legally binding as a handwritten one.';
+
 async function finish(){
+  // Record the signature server-side FIRST. The timestamp and IP that end up
+  // on the certificate then come from the database, not from this device's
+  // clock — which is the only version of either worth putting on a record.
+  const values = {};
+  for (const f of mine()) if (S.hasValue(f)) values[f.id] = f.value;
+
+  const res = await S.rpc('sg_sign', {
+    p_id: DOC.envelope, p_signer_id: me.id, p_values: values,
+    p_consent: CONSENT_TEXT, p_user_agent: navigator.userAgent
+  });
+  // Adopt the server's merged copy: it carries authoritative signedAt/ip for
+  // every signer, including any who signed before us.
+  DOC.signers = res.doc.signers;
+  DOC.fields  = res.doc.fields;
+  me = DOC.signers.find(s => s.id === me.id) || me;
+  try { DOC.events = await S.rpc('sg_events', {p_id: DOC.envelope}); } catch(_){ DOC.events = []; }
+
   const bytes = await S.buildSignedPdf(pdfBytes, DOC);
   const fname = S.safeName(DOC.title) + ' — signed.pdf';
   const pdfBlob = new Blob([bytes], {type: 'application/pdf'});
+
+  // Hand the finished document back so the sender gets it without an email.
+  try {
+    await S.rpc('sg_store_signed', {
+      p_id: DOC.envelope, p_pdf_b64: S.bytesToB64(bytes), p_sha256: await S.sha256Hex(bytes)
+    });
+  } catch(e){ /* the signer still has their copy; do not block them on this */ }
+
   // On a phone, hand it straight to the share sheet (Mail, WhatsApp…); a
   // download would land in Files and be a chore to attach.
   const how = await S.shareOrDownload(fname, pdfBlob, 'Signed: ' + DOC.title);
@@ -1285,49 +1452,25 @@ async function finish(){
 
   const waiting = DOC.signers.filter(s => s.id !== me.id && !s.signedAt &&
                                           DOC.fields.some(f => f.signer === s.id));
-
-  const subject = 'Signed: ' + DOC.title;
-  const body = 'Hi ' + (DOC.sender.name || '') + ',\n\n' +
-    'I have signed "' + DOC.title + '". The signed PDF is attached.\n\n' +
-    'Signed by: ' + (me.name || '') + '\n' +
-    'Date: ' + S.fmtStamp(me.signedAt) + '\n\n— sent from Signet';
-  const mailto = 'mailto:' + encodeURIComponent(DOC.sender.email || '') +
-    '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-  const gmail = 'https://mail.google.com/mail/?view=cm&fs=1&to=' +
-    encodeURIComponent(DOC.sender.email || '') + '&su=' + encodeURIComponent(subject) +
-    '&body=' + encodeURIComponent(body);
-  const sharable = S.canShareFile(new File([], fname, {type: 'application/pdf'}));
-
   document.getElementById('stage').innerHTML =
     '<div class="done">' +
       '<div class="tick">✓</div>' +
       '<h1>Signed</h1>' +
-      '<p><b>' + S.esc(fname) + '</b> ' +
-      (how === 'shared' ? 'is ready to send' : 'has been saved to your device') + '.<br>' +
-      'Send it back to ' + S.esc(DOC.sender.name || 'the sender') +
-      (DOC.sender.email ? ' at ' + S.esc(DOC.sender.email) : '') + '.</p>' +
+      '<p>' + S.esc(DOC.sender.name || 'The sender') + ' has it. The signed document went back ' +
+      'automatically, so there is nothing left for you to send.</p>' +
       '<div class="donebtns">' +
-        (sharable
-          ? '<button class="btn primary lg block" id="share">Send the signed PDF →</button>' +
-            '<a class="btn block" href="' + mailto + '">Compose the email myself</a>'
-          : '<a class="btn primary lg block" href="' + gmail + '" target="_blank" rel="noopener">' +
-              'Reply in Gmail (then attach the PDF)</a>' +
-            '<a class="btn block" href="' + mailto + '">Use my default mail app</a>') +
-        '<button class="btn ghost block" id="again">Save the PDF again</button>' +
+        '<button class="btn primary lg block" id="share">Keep a copy for yourself</button>' +
       '</div>' +
       (waiting.length
         ? '<p class="note" style="margin-top:20px">' + S.esc(waiting.map(s => s.name || 'another signer').join(' and ')) +
-          ' still need' + (waiting.length === 1 ? 's' : '') + ' to sign. ' +
-          S.esc(DOC.sender.name || 'The sender') + ' will send them their own copy once this one is back.</p>'
+          ' still need' + (waiting.length === 1 ? 's' : '') + ' to sign before the document is complete.</p>'
         : '') +
-      '<p class="note" style="margin-top:14px">Nothing was uploaded anywhere. The signed file ' +
-        'exists only on this device until you email it.</p>' +
+      '<p class="note" style="margin-top:14px">Your signature, the exact time and your IP address ' +
+        'were recorded on a certificate page attached to the document.</p>' +
     '</div>';
 
-  const resend = () => S.shareOrDownload(fname, pdfBlob, 'Signed: ' + DOC.title);
-  document.getElementById('again').onclick = () => S.download(fname, pdfBlob);
-  const sh = document.getElementById('share');
-  if (sh) sh.onclick = resend;
+  document.getElementById('share').onclick =
+    () => S.shareOrDownload(fname, pdfBlob, 'Signed: ' + DOC.title);
   window.scrollTo(0, 0);
 }
 
@@ -1409,6 +1552,7 @@ function renderStart(){
       '<button class="btn lg block" id="wassent">✍  I was asked to sign something</button>' +
       '<input type="file" id="picksignet" class="hidden">' +
       '<div style="margin-top:12px"><button class="btn ghost" id="resume">Resume a saved draft…</button></div>' +
+      '<div id="sentwrap"></div>' +
       '<div class="flow">' +
         '<div class="flowc"><div class="n">1</div><b>Place</b><span>Put Signature, Date and Text boxes onto the page, one colour per person.</span></div>' +
         '<div class="flowc"><div class="n">2</div><b>Send</b><span>Signet writes the Gmail message and gives you a small file to attach.</span></div>' +
@@ -1448,6 +1592,60 @@ function renderStart(){
     if (f) (/\.(signet|json)$/i.test(f.name) ? loadSignetFile : loadPdfFile)(f);
   });
   ['dragover','drop'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
+  renderSent();
+}
+
+/* Documents you have sent, with live status. The ids live on this device;
+   the server is asked only about the ones you already hold. */
+async function renderSent(){
+  const wrap = document.getElementById('sentwrap');
+  const mine = S.store.get('sent', []);
+  if (!wrap || !mine.length) return;
+
+  wrap.innerHTML = '<div class="sentbox"><h3>Sent for signature</h3>' +
+    '<div class="sentlist" id="sentlist">' +
+    mine.slice(0, 8).map(x => '<div class="sentrow" data-id="' + S.esc(x.id) + '">' +
+      '<div class="si"><b>' + S.esc(x.title) + '</b><span>to ' + S.esc(x.to) + '</span></div>' +
+      '<span class="pill wait">checking…</span></div>').join('') +
+    '</div></div>';
+
+  let rows;
+  try { rows = await S.rpc('sg_status', {p_ids: mine.map(x => x.id)}); }
+  catch(e){
+    wrap.querySelectorAll('.pill').forEach(p => {
+      p.textContent = 'unknown';
+      p.title = 'Could not check status: ' + e.message;   // say why, not just "offline"
+    });
+    console.warn('[signet] sg_status failed:', e);
+    return;
+  }
+  const by = {};
+  (rows || []).forEach(r => { by[r.id] = r; });
+
+  wrap.querySelectorAll('.sentrow').forEach(row => {
+    const r = by[row.dataset.id];
+    const pill = row.querySelector('.pill');
+    if (!r){ pill.textContent = 'not found'; pill.className = 'pill wait'; return; }
+    if (r.status === 'signed'){
+      pill.textContent = 'Signed ✓'; pill.className = 'pill ok';
+      row.classList.add('clickable');
+      row.onclick = () => downloadSigned(r.id, pill);
+    } else {
+      pill.textContent = 'Waiting'; pill.className = 'pill wait';
+    }
+  });
+}
+
+async function downloadSigned(id, pill){
+  const was = pill.textContent;
+  pill.textContent = 'Fetching…';
+  try {
+    const r = await S.rpc('sg_signed', {p_id: id});
+    if (!r || !r.pdf){ S.toast('The signer has not returned a finished PDF yet', 4500); pill.textContent = was; return; }
+    await S.shareOrDownload(S.safeName(r.title) + ' — signed.pdf',
+      new Blob([S.b64ToBytes(r.pdf)], {type: 'application/pdf'}), 'Signed: ' + r.title);
+    pill.textContent = was;
+  } catch(e){ S.toast(e.message, 5000); pill.textContent = was; }
 }
 
 async function loadPdfFile(file){
@@ -1809,10 +2007,10 @@ function drawRightSend(rail){
       : '') +
     '<div class="sect">' +
       '<button class="btn primary block lg" id="build"' + (problems.length ? ' disabled' : '') +
-        '>Build the signing request</button>' +
-      '<p class="note" style="margin-top:10px">Gives you a small file to attach to a Gmail ' +
-        'message. The signer opens Signet on any device — phone included — loads the file, ' +
-        'signs, and sends you the finished PDF.</p>' +
+        '>Send for signature</button>' +
+      '<p class="note" style="margin-top:10px">Gives you a link to paste into an email. ' +
+        'They tap it and sign — on a phone, with nothing to download. The signed PDF ' +
+        'comes back here automatically.</p>' +
     '</div>' +
     '<div class="sect">' +
       '<h3>Also useful</h3>' +
@@ -1821,99 +2019,131 @@ function drawRightSend(rail){
     '</div>';
 
   const b = document.getElementById('build');
-  if (b && !b.disabled) b.onclick = () => buildPacket(target);
+  if (b && !b.disabled) b.onclick = () => sendForSignature(target);
   document.getElementById('signnow').onclick = exportNow;
   document.getElementById('savedraft2').onclick = saveDraft;
 }
 
-/* ---------------- packet construction ---------------- */
-function buildPacket(target){
-  // Record our own signing before the packet is frozen, so the certificate
-  // credits the sender rather than listing them as unsigned.
-  const me = A.doc.signers.find(x => x.isMe);
-  if (fieldsOf(me.id).some(S.hasValue) && !me.signedAt){
-    me.signedAt = new Date().toISOString();
-    me.agent = navigator.userAgent;
-    me.name = A.doc.sender.name || 'Me';
-    me.email = A.doc.sender.email || '';
-  }
-  const packet = JSON.parse(JSON.stringify(A.doc));
-  packet.pdf = A.pdfB64;
-  packet.currentSigner = target.id;
-  packet.sender = {name: A.doc.sender.name, email: A.doc.sender.email};
-  // Strip signers who have nothing to do, but keep already-signed ones for the certificate.
-  packet.signers = packet.signers.filter(s => s.signedAt || fieldsOf(s.id).length || s.id === target.id);
+/* ---------------- sending ----------------
+   The document is stored server-side and the signer gets a plain link. That is
+   the whole reason for the backend: an attachment cannot be opened on an
+   iPhone (iOS refuses to run scripts in mail attachments), and a link needs no
+   saving, no Files app and no picker. */
+function signLink(id){ return appUrl() + '#s=' + id; }
 
-  const json  = JSON.stringify(packet);
-  const fname = S.safeName(A.doc.title) + ' — signing request.signet.json';
-  const blob  = new Blob([json], {type: 'application/json'});
-  S.shareOrDownload(fname, blob, 'Signing request')
-   .then(how => showSendModal(target, fname, Math.round(json.length / 1024), how));
+async function sendForSignature(target){
+  const btn = document.getElementById('build');
+  const key = await senderKey();
+  if (key === null) return;                       // cancelled at the passphrase prompt
+
+  if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    // Our own fields are signed before the envelope is stored, so the record
+    // credits the sender instead of listing them as outstanding.
+    const me = A.doc.signers.find(x => x.isMe);
+    if (fieldsOf(me.id).some(S.hasValue) && !me.signedAt){
+      me.signedAt = new Date().toISOString();
+      me.agent    = navigator.userAgent;
+      me.name     = A.doc.sender.name || 'Me';
+      me.email    = A.doc.sender.email || '';
+    }
+
+    const doc = JSON.parse(JSON.stringify(A.doc));
+    doc.signers = doc.signers.filter(s => s.signedAt || fieldsOf(s.id).length || s.id === target.id);
+    delete doc.sender;
+
+    const sha = await S.sha256Hex(A.pdfBytes);
+    const id  = await S.rpc('sg_create', {
+      p_key: key,
+      p_title: A.doc.title,
+      p_message: A.doc.message || '',
+      p_sender_name: A.doc.sender.name,
+      p_sender_email: A.doc.sender.email,
+      p_pdf_b64: A.pdfB64,
+      p_pdf_sha256: sha,
+      p_page_count: A.geo.length,
+      p_doc: {signers: doc.signers, fields: doc.fields},
+      p_user_agent: navigator.userAgent
+    });
+
+    rememberSent(id, A.doc.title, target);
+    showSentModal(id, target);
+  } catch(e){
+    if (/passphrase/i.test(e.message)) S.store.del('senderkey');   // let them retype it
+    S.toast(e.message, 6000);
+  } finally {
+    if (btn){ btn.disabled = false; btn.textContent = 'Send for signature'; }
+  }
 }
 
-function showSendModal(target, fname, kb, how){
-  const url = appUrl();
+/* The passphrase only gates creating envelopes, so it lives on the sending
+   device and signers never see it. */
+async function senderKey(){
+  const saved = S.store.get('senderkey', null);
+  if (saved) return saved;
+  const v = prompt('Sender passphrase\n\nThis is the one you set in your Supabase project. ' +
+                   'It is asked once per device, and signers never need it.');
+  if (v === null) return null;
+  S.store.set('senderkey', v);
+  return v;
+}
+
+function rememberSent(id, title, target){
+  const list = S.store.get('sent', []);
+  list.unshift({id, title, to: target.name || target.email, at: new Date().toISOString()});
+  S.store.set('sent', list.slice(0, 60));
+}
+
+function showSentModal(id, target){
+  const link    = signLink(id);
   const subject = 'Please sign: ' + A.doc.title;
   const body =
     'Hi ' + (target.name ? target.name.split(/\s+/)[0] : '') + ',\n\n' +
-    'Please sign "' + A.doc.title + '". It takes about a minute — no account, no app, ' +
-    'and it works on a phone.\n\n' +
-    '  1. Save the attached file (' + fname + ') to your device.\n' +
-    '  2. Open this page in your browser:\n     ' + url + '\n' +
-    '  3. Choose "I was asked to sign", then pick the file you just saved.\n' +
-    '  4. Tap the highlighted boxes, then press Finish and send the signed PDF back to me.\n\n' +
+    'Please sign "' + A.doc.title + '". Just open this link and sign — it works ' +
+    'on a phone, and there is nothing to download or install:\n\n' +
+    link + '\n\n' +
     (A.doc.message ? A.doc.message + '\n\n' : '') +
     'Thanks,\n' + (A.doc.sender.name || '');
-  const gmail = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(target.email) +
+  const gmail  = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(target.email) +
     '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
   const mailto = 'mailto:' + encodeURIComponent(target.email) + '?subject=' +
     encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
 
-  const where = how === 'shared' ? 'has been shared'
-              : how === 'cancelled' ? 'was not saved — use “Download again” below'
-              : 'has been saved to your Downloads folder';
   const m = modal(
-    '<div class="mhead"><div><h2>Signing request ready</h2>' +
-      '<p><b>' + S.esc(fname) + '</b> (' + kb + '&nbsp;KB) ' + where + '.</p></div>' +
+    '<div class="mhead"><div><h2>Ready to send</h2>' +
+      '<p>' + S.esc(target.name || target.email) + ' opens this link and signs. ' +
+      'Nothing to download, nothing to install.</p></div>' +
       '<button class="x">×</button></div>' +
     '<div class="mbody">' +
-      '<ol class="steplist">' +
-        '<li>Click <b>Open Gmail</b> below — the message to ' + S.esc(target.name || target.email) +
-          ' is already written, link included.</li>' +
-        '<li><b>Attach</b> the signing‑request file to that message.</li>' +
-        '<li>Send. They open the link on any device — phone included — load the file, sign, ' +
-          'and send the finished PDF back to ' + S.esc(A.doc.sender.email || 'you') + '.</li>' +
-      '</ol>' +
-      '<div class="note info" style="margin-top:6px">The document travels in the attachment, not ' +
-        'through the website — <b>' + S.esc(url) + '</b> only ever loads the blank app. ' +
-        '<button class="linkish" id="seturl">Change this address</button></div>' +
+      '<div class="linkrow"><input class="inp" id="lnk" readonly value="' + S.esc(link) + '">' +
+        '<button class="btn" id="copy">Copy</button></div>' +
+      '<div class="note info" style="margin-top:12px">Anyone with this link can sign the ' +
+        'document, so send it only to ' + S.esc(target.email || 'them') + '. ' +
+        'You will see it here as signed once they are done.</div>' +
     '</div>' +
     '<div class="mfoot">' +
-      '<button class="btn ghost" id="again2">Download again</button>' +
+      '<a class="btn ghost" href="' + mailto + '">Default mail app</a>' +
       '<div class="spacer"></div>' +
-      '<a class="btn" href="' + mailto + '">Default mail app</a>' +
       '<a class="btn primary" href="' + gmail + '" target="_blank" rel="noopener">Open Gmail →</a>' +
     '</div>');
-  m.querySelector('#again2').onclick = () => buildPacket(target);
-  m.querySelector('#seturl').onclick = () => {
-    const v = prompt('Web address where Signet is published.\n' +
-      'Signers open this to load the file you attach.', appUrl());
-    if (v && /^https?:\/\//i.test(v.trim())){
-      S.store.set('appurl', v.trim().replace(/\s+$/,''));
-      m.remove(); showSendModal(target, fname, kb, how);
-    } else if (v){ S.toast('That needs to start with https://'); }
+
+  m.querySelector('#copy').onclick = async () => {
+    const el = m.querySelector('#lnk');
+    try { await navigator.clipboard.writeText(link); }
+    catch(_){ el.select(); document.execCommand('copy'); }
+    m.querySelector('#copy').textContent = 'Copied';
   };
 }
 
-/* Where signers should go to open the attachment. Defaults to wherever this
-   page is itself being served from, which is right once it is hosted; a
-   file:// copy has no useful address, so fall back to the published one. */
-const HOSTED_URL = '';
+/* Where this app lives, used to build signing links. Served over https it is
+   simply the current address; a file:// copy has none, so fall back. */
+const HOSTED_URL = 'https://vikimmc4.github.io/signet/';
 function appUrl(){
   const saved = S.store.get('appurl', null);
   if (saved) return saved;
-  if (/^https?:$/i.test(location.protocol)) return location.origin + location.pathname.replace(/\/index\.html$/i, '/');
-  return HOSTED_URL || '(publish Signet first — click “Change this address”)';
+  if (/^https?:$/i.test(location.protocol))
+    return location.origin + location.pathname.replace(/\/index\.html$/i, '/');
+  return HOSTED_URL;
 }
 
 /* ---------------- sign it myself / export ---------------- */
@@ -2297,7 +2527,61 @@ function bindKeys(){
   });
 }
 
-renderStart();
+/* A signing link is #s=<envelope id>. Opening one goes straight into the
+   document — that single tap is the point of the whole backend. */
+async function boot(){
+  const m = /[#?&]s=([0-9a-f]{8,64})/i.exec(location.hash + location.search);
+  if (!m){ renderStart(); return; }
+
+  root.innerHTML = '<div class="start"><div class="startcard">' +
+    '<h1>Signet</h1><p class="sub" id="bootmsg">Opening your document…</p></div></div>';
+  const warn = S.libWarning();
+  if (warn){ document.getElementById('bootmsg').outerHTML = warn; return; }
+
+  try {
+    const e = await S.rpc('sg_open', {p_id: m[1], p_user_agent: navigator.userAgent});
+    if (!e) throw new Error('This signing link is not valid. Ask the sender for a new one.');
+
+    if (e.status === 'signed'){
+      renderAlreadySigned(e);
+      return;
+    }
+    const next = (e.doc.signers || []).find(s =>
+      !s.signedAt && (e.doc.fields || []).some(f => f.signer === s.id));
+    if (!next) throw new Error('There is nothing left to sign on this document.');
+
+    startSigner({
+      id: e.id, title: e.title, message: e.message, sender: e.sender,
+      pdf: e.pdf, pdfSha256: e.pdfSha256, pageCount: e.pageCount,
+      createdAt: e.createdAt, envelope: e.id,
+      signers: e.doc.signers, fields: e.doc.fields, currentSigner: next.id
+    });
+  } catch(err){
+    document.getElementById('bootmsg').outerHTML =
+      '<div class="empty" style="max-width:420px;margin:24px auto;text-align:left;line-height:1.6">' +
+      S.esc(err.message) + '</div>' +
+      '<a class="btn" href="' + S.esc(appUrl()) + '">Go to Signet</a>';
+  }
+}
+
+function renderAlreadySigned(e){
+  root.innerHTML = '<div class="start"><div class="startcard">' +
+    '<div class="tick" style="margin:0 auto 14px">✓</div>' +
+    '<h1>Already signed</h1>' +
+    '<p class="sub">“' + S.esc(e.title) + '” is complete. Nothing further is needed.</p>' +
+    '<button class="btn primary lg" id="getpdf">Download the signed PDF</button>' +
+    '</div></div>';
+  document.getElementById('getpdf').onclick = async () => {
+    try {
+      const r = await S.rpc('sg_signed', {p_id: e.id});
+      if (!r || !r.pdf) return S.toast('The finished PDF is not stored yet', 4000);
+      await S.shareOrDownload(S.safeName(r.title) + ' — signed.pdf',
+        new Blob([S.b64ToBytes(r.pdf)], {type: 'application/pdf'}), 'Signed: ' + r.title);
+    } catch(err){ S.toast(err.message, 5000); }
+  };
+}
+
+boot();
 })();
 </script>
 </body>

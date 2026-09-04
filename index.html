@@ -2581,6 +2581,12 @@ function renderAlreadySigned(e){
   };
 }
 
+// Pasting a signing link while Signet is already open changes only the hash,
+// which is a same-document navigation — nothing would happen without this.
+window.addEventListener('hashchange', () => {
+  if (/[#&]s=[0-9a-f]{8,64}/i.test(location.hash)) location.reload();
+});
+
 boot();
 })();
 </script>

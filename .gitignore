@@ -1,0 +1,4 @@
+﻿# local scratch
+_offline-test.html
+*.signet.json
+*signed.pdf

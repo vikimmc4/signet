@@ -1,0 +1,2304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signet — Personal PDF e-Sign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Great+Vibes&family=Caveat:wght@600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+
+<style id="appcss">
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --panel-2:#fbfcfd; --ink:#11161d; --ink-2:#5b6675;
+  --ink-3:#8a94a3; --line:#e3e7ec; --line-2:#eef1f4; --accent:#4f46e5; --accent-ink:#fff;
+  --accent-soft:#eef0ff; --ok:#0f9d58; --warn:#b8860b; --danger:#d93838;
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06);
+  --shadow-lg:0 12px 48px rgba(16,24,40,.18);
+  --radius:12px; --radius-sm:8px;
+  --page-shadow:0 1px 3px rgba(16,24,40,.14),0 12px 32px rgba(16,24,40,.10);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel-2:#1b2129; --ink:#e8edf4; --ink-2:#9aa6b6;
+    --ink-3:#6e7b8c; --line:#252c36; --line-2:#1e242c; --accent:#7c74ff; --accent-ink:#fff;
+    --accent-soft:#221f45; --ok:#3ddc84; --warn:#e0b341; --danger:#ff6b6b;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    --shadow-lg:0 12px 48px rgba(0,0,0,.6);
+    --page-shadow:0 1px 3px rgba(0,0,0,.5),0 12px 32px rgba(0,0,0,.45);
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;overflow:hidden;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--accent)}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--ink-3);background-clip:content-box}
+
+/* ---------- shell ---------- */
+.app{display:flex;flex-direction:column;height:100vh}
+.topbar{
+  display:flex;align-items:center;gap:14px;padding:0 16px;height:56px;flex:0 0 56px;
+  background:var(--panel);border-bottom:1px solid var(--line);z-index:20;
+}
+.brand{display:flex;align-items:center;gap:9px;font-weight:650;letter-spacing:-.01em;white-space:nowrap}
+.brand .mark{
+  width:26px;height:26px;border-radius:7px;background:var(--accent);color:#fff;
+  display:grid;place-items:center;font-size:14px;box-shadow:0 2px 8px rgba(79,70,229,.35)
+}
+.doctitle{
+  font-weight:550;border:1px solid transparent;background:transparent;border-radius:7px;
+  padding:5px 8px;min-width:120px;max-width:340px;flex:1 1 auto;text-overflow:ellipsis
+}
+.doctitle:hover{border-color:var(--line)}
+.doctitle:focus{outline:none;border-color:var(--accent);background:var(--panel-2)}
+.steps{display:flex;align-items:center;gap:4px;margin:0 auto}
+.step{
+  display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:99px;
+  color:var(--ink-3);font-size:13px;font-weight:550;white-space:nowrap;background:transparent;border:0
+}
+.step .n{
+  width:19px;height:19px;border-radius:99px;display:grid;place-items:center;font-size:11px;
+  background:var(--line);color:var(--ink-2);font-weight:650
+}
+.step.on{background:var(--accent-soft);color:var(--accent)}
+.step.on .n{background:var(--accent);color:#fff}
+.step.done{color:var(--ok)}
+.step.done .n{background:var(--ok);color:#fff}
+.step:disabled{opacity:.45;cursor:not-allowed}
+.sep{width:14px;height:1px;background:var(--line)}
+.spacer{flex:1}
+
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:550;
+  font-size:13px;white-space:nowrap;transition:.13s
+}
+.btn:hover{background:var(--panel-2);border-color:var(--ink-3)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--line-2);color:var(--ink)}
+.btn.danger{color:var(--danger);border-color:transparent}
+.btn.danger:hover{background:rgba(217,56,56,.1);border-color:transparent}
+.btn.lg{padding:11px 20px;font-size:14px;border-radius:10px}
+.btn:disabled{opacity:.42;cursor:not-allowed;filter:none}
+.btn.block{width:100%;justify-content:center}
+
+.body{display:flex;flex:1;min-height:0}
+.rail{
+  width:290px;flex:0 0 290px;background:var(--panel);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;overflow-y:auto;z-index:10
+}
+.rail.right{border-right:0;border-left:1px solid var(--line);width:308px;flex-basis:308px}
+.sect{padding:16px;border-bottom:1px solid var(--line-2)}
+.sect:last-child{border-bottom:0}
+.sect h3{
+  margin:0 0 11px;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--ink-3);display:flex;align-items:center;gap:7px
+}
+.sect h3 .hint{font-weight:500;letter-spacing:0;text-transform:none;color:var(--ink-3);font-size:11.5px;margin-left:auto}
+
+/* ---------- viewer ---------- */
+.stage{flex:1;min-width:0;overflow:auto;padding:26px 0 90px;position:relative;scroll-behavior:smooth}
+.pages{display:flex;flex-direction:column;align-items:center;gap:22px}
+.pagewrap{position:relative;box-shadow:var(--page-shadow);border-radius:3px;background:#fff}
+.pagewrap canvas{display:block;border-radius:3px}
+.pagenum{
+  position:absolute;left:-4px;top:-4px;transform:translate(-100%,0);font-size:11px;color:var(--ink-3);
+  font-weight:600;padding:2px 6px;white-space:nowrap
+}
+.layer{position:absolute;inset:0}
+.stage.arming .layer{cursor:crosshair}
+.stage.arming .pagewrap{outline:2px dashed var(--accent);outline-offset:4px}
+
+/* ---------- fields ---------- */
+.fld{
+  position:absolute;border:1.5px solid var(--fc,var(--accent));border-radius:5px;
+  background:color-mix(in srgb,var(--fc,var(--accent)) 13%,transparent);
+  display:flex;align-items:center;justify-content:flex-start;overflow:visible;cursor:grab;
+  min-width:14px;min-height:12px;transition:box-shadow .12s;
+  touch-action:none                     /* drag must not scroll the page on touch */
+}
+.fld:hover{box-shadow:0 0 0 3px color-mix(in srgb,var(--fc,var(--accent)) 22%,transparent)}
+.fld.sel{box-shadow:0 0 0 3px color-mix(in srgb,var(--fc,var(--accent)) 40%,transparent);z-index:5}
+.fld.dragging{cursor:grabbing;opacity:.85}
+.fld .cap{
+  font-size:11px;font-weight:600;color:var(--fc,var(--accent));padding:0 5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;pointer-events:none;line-height:1.1;
+  text-shadow:0 1px 0 rgba(255,255,255,.7)
+}
+.fld .val{position:absolute;inset:0;display:flex;align-items:center;padding:0 3px;pointer-events:none}
+.fld .val img{max-width:100%;max-height:100%;object-fit:contain;margin:auto}
+.fld .val span{
+  color:#111;line-height:1;white-space:nowrap;overflow:hidden;font-family:Helvetica,Arial,sans-serif
+}
+.fld.filled{background:transparent;border-style:solid;border-color:color-mix(in srgb,var(--fc) 45%,transparent)}
+.fld.filled .cap{display:none}
+.fld .tag{
+  position:absolute;left:-1.5px;bottom:100%;margin-bottom:3px;background:var(--fc,var(--accent));color:#fff;
+  font-size:10px;font-weight:650;padding:2px 6px;border-radius:5px;white-space:nowrap;
+  opacity:0;transition:.12s;pointer-events:none;letter-spacing:.01em
+}
+.fld:hover .tag,.fld.sel .tag{opacity:1}
+.fld .hdl{
+  position:absolute;right:-5px;bottom:-5px;width:11px;height:11px;border-radius:3px;
+  background:var(--fc,var(--accent));border:2px solid var(--panel);cursor:nwse-resize;opacity:0;transition:.12s
+}
+.fld:hover .hdl,.fld.sel .hdl{opacity:1}
+.fld .del{
+  position:absolute;right:-9px;top:-9px;width:19px;height:19px;border-radius:99px;background:var(--danger);
+  color:#fff;border:2px solid var(--panel);display:grid;place-items:center;font-size:12px;line-height:1;
+  opacity:0;transition:.12s;padding:0
+}
+.fld:hover .del,.fld.sel .del{opacity:1}
+.fld.req::after{
+  content:"";position:absolute;right:-3px;top:-3px;width:6px;height:6px;border-radius:99px;
+  background:var(--danger);box-shadow:0 0 0 1.5px var(--panel)
+}
+.fld.filled.req::after{display:none}
+
+/* signer-mode field emphasis */
+.fld.todo{animation:pulse 2s ease-in-out infinite;cursor:pointer}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--fc) 45%,transparent)}50%{box-shadow:0 0 0 7px transparent}}
+.fld.other{opacity:.32;pointer-events:none;filter:grayscale(.6)}
+.fld.readonly{cursor:default}
+
+/* ---------- palette ---------- */
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.tool{
+  display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel-2);font-size:12.5px;font-weight:550;text-align:left;transition:.12s;
+  touch-action:none;user-select:none
+}
+.tool:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.tool.armed{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 4px 14px rgba(79,70,229,.35)}
+.tool .ic{font-size:14px;opacity:.85;width:16px;text-align:center}
+.tool.wide{grid-column:1/-1}
+.ghosttool{
+  position:fixed;z-index:999;pointer-events:none;padding:7px 11px;border-radius:8px;background:var(--accent);
+  color:#fff;font-size:12.5px;font-weight:600;box-shadow:var(--shadow-lg);opacity:.94;transform:translate(-50%,-50%)
+}
+
+/* ---------- recipients ---------- */
+.rcp{
+  display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel-2);margin-bottom:7px;cursor:pointer;transition:.12s;position:relative
+}
+.rcp:hover{border-color:var(--ink-3)}
+.rcp.on{border-color:var(--rc);background:color-mix(in srgb,var(--rc) 9%,var(--panel-2));box-shadow:inset 3px 0 0 var(--rc)}
+.rcp .dot{width:10px;height:10px;border-radius:99px;background:var(--rc);flex:0 0 10px}
+.rcp .who{min-width:0;flex:1}
+.rcp .nm{display:block;font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rcp .em{display:block;font-size:11.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rcp .cnt{
+  font-size:11px;font-weight:650;color:var(--rc);background:color-mix(in srgb,var(--rc) 15%,transparent);
+  padding:2px 7px;border-radius:99px
+}
+.rcp .x{
+  opacity:0;border:0;background:transparent;color:var(--ink-3);padding:2px 4px;border-radius:5px;font-size:14px;line-height:1
+}
+.rcp:hover .x{opacity:1}
+.rcp .x:hover{background:rgba(217,56,56,.14);color:var(--danger)}
+
+.field{display:block;margin-bottom:9px}
+.field label{display:block;font-size:11.5px;font-weight:600;color:var(--ink-2);margin-bottom:4px}
+.inp{
+  width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);
+  font-size:13px;transition:.12s
+}
+.inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);background:var(--panel)}
+.inp::placeholder{color:var(--ink-3)}
+textarea.inp{resize:vertical;min-height:64px;line-height:1.5}
+.row{display:flex;gap:8px}
+.row>*{flex:1;min-width:0}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);cursor:pointer;user-select:none}
+.chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+
+.fieldlist{display:flex;flex-direction:column;gap:5px;max-height:230px;overflow-y:auto;margin:-2px}
+.fitem{
+  display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:8px;background:var(--panel-2);
+  border:1px solid var(--line);font-size:12.5px;cursor:pointer;margin:2px
+}
+.fitem:hover{border-color:var(--ink-3)}
+.fitem.on{border-color:var(--accent);background:var(--accent-soft)}
+.fitem .d{width:8px;height:8px;border-radius:99px;background:var(--fc);flex:0 0 8px}
+.fitem .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:550}
+.fitem .p{font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+
+.empty{
+  color:var(--ink-3);font-size:12.5px;text-align:center;padding:18px 10px;border:1px dashed var(--line);
+  border-radius:9px;line-height:1.55
+}
+
+/* ---------- drop / start screen ---------- */
+.start{
+  position:absolute;inset:0;display:grid;place-items:center;padding:30px;overflow-y:auto;background:var(--bg);z-index:15
+}
+.startcard{max-width:640px;width:100%;text-align:center}
+.startcard h1{font-size:30px;letter-spacing:-.025em;margin:0 0 10px;font-weight:680}
+.startcard p.sub{color:var(--ink-2);margin:0 0 26px;font-size:15px;line-height:1.6}
+.drop{
+  border:2px dashed var(--line);border-radius:18px;padding:52px 30px;background:var(--panel);
+  transition:.16s;cursor:pointer
+}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft);transform:translateY(-1px)}
+.drop .big{font-size:38px;margin-bottom:12px;opacity:.75}
+.drop .t1{font-weight:650;font-size:16px;margin-bottom:5px}
+.drop .t2{color:var(--ink-3);font-size:13px}
+.flow{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:30px;text-align:left
+}
+.flowc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px}
+.flowc .n{
+  width:22px;height:22px;border-radius:99px;background:var(--accent-soft);color:var(--accent);
+  display:grid;place-items:center;font-size:11px;font-weight:700;margin-bottom:9px
+}
+.flowc b{display:block;font-size:13px;margin-bottom:3px}
+.flowc span{font-size:12px;color:var(--ink-3);line-height:1.5}
+@media(max-width:720px){.flow{grid-template-columns:1fr}}
+
+
+/* ---------- modal ---------- */
+.scrim{
+  position:fixed;inset:0;background:rgba(10,14,20,.5);backdrop-filter:blur(3px);z-index:100;
+  display:grid;place-items:center;padding:24px;overflow-y:auto
+}
+.modal{
+  background:var(--panel);border-radius:16px;box-shadow:var(--shadow-lg);width:100%;max-width:520px;
+  border:1px solid var(--line);overflow:hidden;animation:pop .16s ease-out
+}
+.modal.wide{max-width:660px}
+@keyframes pop{from{transform:translateY(8px) scale(.985);opacity:0}}
+.mhead{padding:17px 20px 0;display:flex;align-items:flex-start;gap:12px}
+.mhead h2{margin:0;font-size:17px;font-weight:650;letter-spacing:-.01em}
+.mhead p{margin:4px 0 0;font-size:13px;color:var(--ink-2);line-height:1.5}
+.mhead .x{margin-left:auto;border:0;background:transparent;color:var(--ink-3);font-size:20px;padding:0 4px;line-height:1;border-radius:6px}
+.mhead .x:hover{color:var(--ink);background:var(--line-2)}
+.mbody{padding:16px 20px}
+.mfoot{padding:14px 20px;border-top:1px solid var(--line-2);display:flex;gap:9px;align-items:center;background:var(--panel-2)}
+.mfoot .spacer{flex:1}
+
+.tabs{display:flex;gap:3px;background:var(--line-2);padding:3px;border-radius:9px;margin-bottom:14px}
+.tab{
+  flex:1;padding:7px;border-radius:7px;border:0;background:transparent;font-size:13px;font-weight:600;
+  color:var(--ink-2)
+}
+.tab.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(16,24,40,.1)}
+.pad{
+  width:100%;height:172px;border:1px solid var(--line);border-radius:11px;background:#fff;
+  touch-action:none;cursor:crosshair;display:block
+}
+.padwrap{position:relative}
+.padwrap .base{
+  position:absolute;left:22px;right:22px;bottom:44px;border-bottom:1px dashed #c8cfd8;pointer-events:none
+}
+.padwrap .xmark{position:absolute;left:22px;bottom:46px;color:#c8cfd8;font-size:13px;font-weight:700;pointer-events:none}
+.fonts{display:flex;gap:7px;margin-top:11px;flex-wrap:wrap}
+.fontpick{
+  padding:7px 14px;border-radius:9px;border:1px solid var(--line);background:var(--panel-2);font-size:19px;
+  line-height:1.25;color:var(--ink)
+}
+.fontpick.on{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent-soft)}
+.preview{
+  height:98px;border:1px solid var(--line);border-radius:11px;background:#fff;display:grid;place-items:center;
+  margin-top:11px;color:#111;overflow:hidden;padding:8px
+}
+.preview img{max-width:100%;max-height:100%;object-fit:contain}
+.note{font-size:12px;color:var(--ink-3);line-height:1.55}
+.note.warn{
+  color:var(--warn);background:color-mix(in srgb,var(--warn) 11%,transparent);padding:10px 12px;
+  border-radius:9px;border:1px solid color-mix(in srgb,var(--warn) 26%,transparent)
+}
+.note.info{
+  color:var(--ink-2);background:var(--panel-2);padding:11px 13px;border-radius:9px;border:1px solid var(--line)
+}
+.kv{display:flex;gap:10px;font-size:13px;padding:7px 0;border-bottom:1px solid var(--line-2)}
+.kv:last-child{border:0}
+.kv b{color:var(--ink-2);font-weight:550;min-width:96px}
+.kv span{flex:1;word-break:break-word}
+.steplist{counter-reset:s;margin:0;padding:0;list-style:none}
+.steplist li{
+  position:relative;padding:0 0 14px 32px;font-size:13px;line-height:1.55;color:var(--ink-2)
+}
+.steplist li::before{
+  counter-increment:s;content:counter(s);position:absolute;left:0;top:0;width:21px;height:21px;
+  border-radius:99px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;
+  font-size:11px;font-weight:700
+}
+.steplist li b{color:var(--ink);font-weight:600}
+.steplist li:last-child{padding-bottom:0}
+
+/* ---------- signer chrome ---------- */
+.sbar{
+  position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);
+  padding:12px 20px;display:flex;align-items:center;gap:14px;z-index:30;box-shadow:0 -4px 20px rgba(16,24,40,.07)
+}
+.prog{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+.bar{flex:1;height:6px;background:var(--line);border-radius:99px;overflow:hidden;max-width:280px}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:99px;transition:width .25s}
+.prog .lbl{font-size:13px;font-weight:600;white-space:nowrap}
+.prog .lbl small{display:block;font-weight:450;color:var(--ink-3);font-size:11.5px}
+.sheader{
+  background:var(--panel);border-bottom:1px solid var(--line);padding:14px 20px;display:flex;
+  align-items:center;gap:14px;flex-wrap:wrap
+}
+.sheader .ti{font-weight:650;font-size:15px;letter-spacing:-.01em}
+.sheader .fr{font-size:12.5px;color:var(--ink-2)}
+.msgbox{
+  max-width:820px;margin:0 auto 20px;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:14px 16px;font-size:13.5px;line-height:1.6;color:var(--ink-2);white-space:pre-wrap
+}
+.msgbox b{color:var(--ink);display:block;margin-bottom:4px;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.jump{
+  position:fixed;right:20px;bottom:82px;z-index:29;box-shadow:var(--shadow-lg)
+}
+.done{
+  max-width:560px;margin:0 auto;text-align:center;padding:44px 24px
+}
+.done .tick{
+  width:62px;height:62px;border-radius:99px;background:var(--ok);color:#fff;display:grid;place-items:center;
+  font-size:31px;margin:0 auto 18px;box-shadow:0 8px 28px color-mix(in srgb,var(--ok) 45%,transparent)
+}
+.done h1{font-size:24px;margin:0 0 8px;letter-spacing:-.02em}
+.done p{color:var(--ink-2);margin:0 0 22px;line-height:1.6}
+.donebtns{display:flex;flex-direction:column;gap:9px;max-width:330px;margin:0 auto}
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--ink);color:var(--bg);
+  padding:11px 18px;border-radius:10px;font-size:13px;font-weight:550;z-index:200;box-shadow:var(--shadow-lg);
+  animation:pop .16s ease-out;max-width:80vw;text-align:center
+}
+.hidden{display:none!important}
+
+.orbar{display:flex;align-items:center;gap:12px;margin:16px 0 12px;color:var(--ink-3);font-size:12px}
+.orbar::before,.orbar::after{content:'';flex:1;height:1px;background:var(--line)}
+.linkish{
+  background:none;border:0;padding:0;color:var(--accent);font:inherit;font-size:inherit;
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer
+}
+
+/* ---------- touch & small screens ----------
+   On a phone there is no hover, so field handles must be permanently visible,
+   and the two rails become slide-over drawers instead of fixed columns. */
+@media(pointer:coarse){
+  .fld .hdl,.fld .del{opacity:1}
+  .fld .hdl{width:18px;height:18px;right:-9px;bottom:-9px;border-radius:5px}
+  .fld .del{width:24px;height:24px;font-size:15px;right:-12px;top:-12px}
+  .btn{padding:9px 13px}
+}
+@media(max-width:900px){
+  .app{height:100dvh}
+  .topbar{height:52px;flex-basis:52px;padding:0 10px;gap:9px}
+  .topbar .steps,.topbar .btn.ghost:not(.railtoggle){display:none}
+  .doctitle{font-size:14px;min-width:0}
+  .brand span:not(.mark){display:none}
+
+  .rail{
+    position:fixed;top:0;bottom:0;left:0;width:88%;max-width:340px;z-index:60;
+    transform:translateX(-101%);transition:transform .22s ease;box-shadow:0 0 40px rgba(16,24,40,.22)
+  }
+  .rail.right{left:auto;right:0;transform:translateX(101%);width:88%;max-width:340px;flex-basis:auto}
+  .rail.open{transform:none}
+  .railbd{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:55;display:none}
+  .railbd.on{display:block}
+
+  .stage{padding:14px 0 92px}
+  .pagenum{transform:none;left:5px;top:5px;background:rgba(15,23,42,.6);color:#fff;border-radius:4px;padding:2px 7px}
+  .sect{padding:13px 14px}
+
+  .modal{width:100%;max-width:none;border-radius:15px 15px 0 0;max-height:93dvh}
+  .scrim{place-items:end center;padding:0}      /* modals become bottom sheets */
+  .mfoot{flex-wrap:wrap}
+  .mfoot .btn,.mfoot .spacer{flex:1 1 auto}
+  .mfoot .btn{justify-content:center}
+
+  .startcard h1{font-size:23px}
+  .startcard p.sub{font-size:14px;margin-bottom:20px}
+  .drop{padding:26px 16px}
+  .drop .big{font-size:30px;margin-bottom:8px}
+  .flow{margin-top:22px}
+
+  .sbar{padding:10px 12px;flex-wrap:wrap;gap:10px}
+  .sbar .btn{flex:1 1 100%;justify-content:center}
+  .sheader{padding:11px 13px;gap:9px}
+  .msgbox{margin:0 12px 16px}
+}
+/* Drawer chrome is desktop-only clutter; the toggles hide above the breakpoint. */
+.railtoggle{display:none}
+@media(max-width:900px){.railtoggle{display:inline-flex}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- =========================================================================
+     ENGINE — shared verbatim by this console and by every signing packet.
+     Injected as a real <script> at boot; copied into generated packets.
+     (Must never contain a literal closing script tag.)
+     ========================================================================= -->
+<script type="text/plain" id="engine">
+'use strict';
+window.SG = (function(){
+
+const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+
+const TEXT_FONT = 'Helvetica, "Helvetica Neue", Arial, sans-serif';
+
+const TYPES = {
+  signature:{label:'Signature', icon:'✒️', w:180, h:52, ink:true},
+  initials: {label:'Initials',  icon:'🅸',  w:64,  h:46, ink:true},
+  date:     {label:'Date',      icon:'📅', w:112, h:24},
+  name:     {label:'Full name', icon:'👤', w:160, h:24},
+  email:    {label:'Email',     icon:'✉️', w:180, h:24},
+  text:     {label:'Text',      icon:'🔤', w:150, h:24},
+  check:    {label:'Checkbox',  icon:'☑️', w:20,  h:20}
+};
+
+const COLORS = ['#4f46e5','#0891b2','#c2410c','#7c3aed','#0f766e','#be123c','#a16207','#1d4ed8'];
+
+/* ---------------- small helpers ---------------- */
+const uid = (p) => (p||'x') + Math.random().toString(36).slice(2,9);
+const esc = (s) => String(s==null?'':s).replace(/[&<>"']/g, c => (
+  {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+function fmtDate(d){
+  d = d || new Date();
+  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return m[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+function fmtStamp(iso){
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  const p = n => String(n).padStart(2,'0');
+  return fmtDate(d) + ' at ' + p(d.getHours()) + ':' + p(d.getMinutes()) +
+         ' (UTC' + (-d.getTimezoneOffset()>=0?'+':'-') +
+         p(Math.floor(Math.abs(d.getTimezoneOffset())/60)) + ':' +
+         p(Math.abs(d.getTimezoneOffset())%60) + ')';
+}
+function isEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(s||'').trim()); }
+
+/* base64 <-> bytes, chunked so big PDFs don't blow the call stack */
+function bytesToB64(bytes){
+  let out = '', CH = 0x8000;
+  for (let i=0; i<bytes.length; i+=CH)
+    out += String.fromCharCode.apply(null, bytes.subarray(i, i+CH));
+  return btoa(out);
+}
+function b64ToBytes(b64){
+  const bin = atob(b64), out = new Uint8Array(bin.length);
+  for (let i=0; i<bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function download(filename, data, mime){
+  const blob = (data instanceof Blob) ? data : new Blob([data], {type: mime || 'application/octet-stream'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function safeName(s){
+  return String(s||'document').replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,' ').trim().slice(0,70) || 'document';
+}
+
+function toast(msg, ms){
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+  const el = document.createElement('div');
+  el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms || 2600);
+}
+
+const TOUCH = window.matchMedia('(pointer:coarse)').matches;
+
+/* On a phone a downloaded file is awkward to find and attach, so offer the
+   OS share sheet (Mail, WhatsApp, Files…) when the browser supports sharing
+   actual files. Desktop browsers mostly do not, and fall back to download. */
+function canShareFile(file){
+  try { return !!(navigator.canShare && navigator.canShare({files: [file]})); }
+  catch(_){ return false; }
+}
+async function shareOrDownload(filename, blob, shareTitle){
+  const file = new File([blob], filename, {type: blob.type || 'application/octet-stream'});
+  if (canShareFile(file)){
+    try { await navigator.share({files: [file], title: shareTitle || filename}); return 'shared'; }
+    catch(e){ if (e && e.name === 'AbortError') return 'cancelled'; }   // user dismissed the sheet
+  }
+  download(filename, blob);
+  return 'downloaded';
+}
+
+/* Both libraries come from a CDN. If the machine is offline, or a network
+   blocks it, they are simply absent — say so plainly instead of failing
+   silently on the first click. */
+function missingLibs(){
+  const miss = [];
+  if (!window.pdfjsLib) miss.push('pdf.js');
+  if (!window.PDFLib)   miss.push('pdf-lib');
+  return miss;
+}
+function libWarning(){
+  const miss = missingLibs();
+  if (!miss.length) return null;
+  return '<div class="empty" style="max-width:430px;margin:60px auto;text-align:left;line-height:1.6">' +
+    '<b style="color:var(--ink);display:block;margin-bottom:6px;font-size:14px">Could not load ' +
+    miss.join(' and ') + '</b>' +
+    'This page pulls two small libraries from the internet the first time it runs. ' +
+    'Check your connection and reload. If you are on a restricted network, try a personal ' +
+    'connection or a different browser.</div>';
+}
+
+function loadImg(src){
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error('image failed to load'));
+    i.src = src;
+  });
+}
+function canvasPng(c){
+  return new Promise(res => c.toBlob(b => b.arrayBuffer().then(ab => res(new Uint8Array(ab))), 'image/png'));
+}
+
+/* ---------------- PDF rendering (pdf.js) ---------------- */
+async function openPdf(bytes){
+  // pdf.js transfers/detaches the buffer it is given — always hand it a copy.
+  return await pdfjsLib.getDocument({data: bytes.slice(0)}).promise;
+}
+
+/* Page geometry as the *viewer* sees it (rotation already applied). */
+async function pageGeometry(pdf){
+  const out = [];
+  for (let n = 1; n <= pdf.numPages; n++){
+    const p = await pdf.getPage(n);
+    const vp = p.getViewport({scale: 1});
+    out.push({num: n, w: vp.width, h: vp.height, page: p});
+  }
+  return out;
+}
+
+/* pdf.js paces its render loop with requestAnimationFrame. A background tab
+   freezes rAF — and so do some embedded webviews, even while reporting
+   document.hidden === false. When no frames are being produced the render
+   promise never settles, so probe for a live frame rather than trusting the
+   visibility flag. Result is cached briefly so a multi-page render pays once. */
+let _rafLive = null, _rafAt = 0;
+async function rafLive(){
+  if (_rafLive !== null && Date.now() - _rafAt < 2000) return _rafLive;
+  _rafLive = await new Promise(res => {
+    let fired = false;
+    requestAnimationFrame(() => { fired = true; res(true); });
+    setTimeout(() => { if (!fired) res(false); }, 350);
+  });
+  _rafAt = Date.now();
+  return _rafLive;
+}
+
+async function renderPageTo(pageObj, canvas, cssWidth){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const base = pageObj.getViewport({scale: 1});
+  const scale = cssWidth / base.width;
+  const vp = pageObj.getViewport({scale: scale * dpr});
+  canvas.width = Math.round(vp.width);
+  canvas.height = Math.round(vp.height);
+  canvas.style.width = Math.round(base.width * scale) + 'px';
+  canvas.style.height = Math.round(base.height * scale) + 'px';
+
+  // Wait properly where frames are flowing (the ceiling is a safety net, not a
+  // normal path — a real page renders in about a second); give up quickly where
+  // they are not, so the remaining pages still lay out. Either way a
+  // visibilitychange re-render tidies up once the tab is back in front.
+  const cap = (await rafLive()) ? 20000 : 400;
+  const task = pageObj.render({canvasContext: canvas.getContext('2d'), viewport: vp});
+  let timer;
+  await Promise.race([
+    task.promise.catch(() => {}),
+    new Promise(r => { timer = setTimeout(r, cap); })
+  ]);
+  clearTimeout(timer);
+}
+
+/* ---------------- value → PNG ----------------
+   Every field value is flattened to an image so the exported PDF matches
+   the preview exactly, with no font-embedding or unicode surprises.       */
+async function fieldPng(f, vw, vh){
+  const S = clamp(1400 / Math.max(vw, vh, 1), 2, 6);
+  const cw = Math.max(8, Math.round(vw * S));
+  const ch = Math.max(8, Math.round(vh * S));
+  const c = document.createElement('canvas');
+  c.width = cw; c.height = ch;
+  const g = c.getContext('2d');
+
+  if (f.type === 'signature' || f.type === 'initials'){
+    const img = await loadImg(f.value);
+    const r = Math.min(cw / img.width, ch / img.height);
+    const dw = img.width * r, dh = img.height * r;
+    g.drawImage(img, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+  } else if (f.type === 'check'){
+    g.strokeStyle = '#0f1720';
+    g.lineWidth = Math.max(2, ch * 0.13);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath();
+    g.moveTo(cw * 0.18, ch * 0.54);
+    g.lineTo(cw * 0.41, ch * 0.79);
+    g.lineTo(cw * 0.84, ch * 0.21);
+    g.stroke();
+  } else {
+    const txt = String(f.value);
+    let size = ch * 0.74;
+    g.fillStyle = '#0f1720';
+    for (let i = 0; i < 40; i++){
+      g.font = size + 'px ' + TEXT_FONT;
+      if (g.measureText(txt).width <= cw * 0.97) break;
+      size *= 0.93;
+    }
+    g.textBaseline = 'middle';
+    g.fillText(txt, cw * 0.02, ch * 0.56);
+  }
+  return await canvasPng(c);
+}
+
+/* Map a point given in *viewed* space (top-left origin, rotation applied)
+   to PDF user space (bottom-left origin, rotation NOT applied). */
+function anchorFor(rot, W, H, vx, vy){
+  if (rot === 90)  return {x: vy,     y: vx};
+  if (rot === 180) return {x: W - vx, y: vy};
+  if (rot === 270) return {x: W - vy, y: H - vx};
+  return {x: vx, y: H - vy};
+}
+
+function hasValue(f){
+  return !(f.value === null || f.value === undefined || f.value === '' || f.value === false);
+}
+
+/* ---------------- audit trail page ---------------- */
+async function auditPng(doc, W, H){
+  const S = 2;
+  const c = document.createElement('canvas');
+  c.width = W * S; c.height = H * S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, c.width, c.height);
+  g.scale(S, S);
+
+  const M = 58;
+  let y = M + 6;
+  const F = (sz, wt) => (wt ? wt + ' ' : '') + sz + 'px ' + TEXT_FONT;
+
+  g.fillStyle = '#4f46e5';
+  g.fillRect(M, y - 16, 26, 4);
+  y += 14;
+  g.fillStyle = '#0f1720'; g.font = F(19, '600');
+  g.fillText('Certificate of Completion', M, y);
+  y += 20;
+  g.fillStyle = '#6b7480'; g.font = F(10.5);
+  g.fillText('Generated by Signet · self-contained electronic signature record', M, y);
+  y += 26;
+
+  const line = () => { g.strokeStyle = '#e3e7ec'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(M, y); g.lineTo(W - M, y); g.stroke(); y += 18; };
+  const kv = (k, v) => {
+    g.fillStyle = '#6b7480'; g.font = F(10);
+    g.fillText(String(k).toUpperCase(), M, y);
+    g.fillStyle = '#0f1720'; g.font = F(11.5);
+    const words = String(v == null ? '—' : v).split(/\s+/);
+    let ln = '', yy = y;
+    const maxw = W - M - (M + 138);
+    for (const w of words){
+      const t = ln ? ln + ' ' + w : w;
+      if (g.measureText(t).width > maxw && ln){ g.fillText(ln, M + 138, yy); yy += 15; ln = w; }
+      else ln = t;
+    }
+    g.fillText(ln, M + 138, yy);
+    y = yy + 19;
+  };
+
+  line();
+  kv('Document', doc.title);
+  kv('Envelope ID', doc.id);
+  kv('Pages', doc.pageCount + (doc.pageCount === 1 ? ' page' : ' pages'));
+  kv('Created', fmtStamp(doc.createdAt));
+  kv('Sender', (doc.sender.name || '—') + (doc.sender.email ? '  ·  ' + doc.sender.email : ''));
+  line();
+
+  g.fillStyle = '#0f1720'; g.font = F(12.5, '600');
+  g.fillText('Signers', M, y); y += 20;
+
+  for (const s of doc.signers){
+    const fc = doc.fields.filter(f => f.signer === s.id).length;
+    if (!fc && !s.signedAt) continue;
+    g.fillStyle = s.color || '#4f46e5';
+    g.beginPath(); g.arc(M + 4, y - 4, 4, 0, 6.284); g.fill();
+    g.fillStyle = '#0f1720'; g.font = F(11.5, '600');
+    g.fillText(s.name || 'Unnamed signer', M + 16, y);
+    g.fillStyle = '#6b7480'; g.font = F(10.5);
+    g.fillText(s.email || 'no email on file', M + 16, y + 14);
+    g.fillStyle = s.signedAt ? '#0f9d58' : '#b8860b';
+    g.font = F(10.5, '600');
+    g.fillText(s.signedAt ? 'Signed  ' + fmtStamp(s.signedAt) : 'Not signed',
+               M + 16, y + 28);
+    if (s.agent){
+      g.fillStyle = '#98a1ad'; g.font = F(8.5);
+      g.fillText(String(s.agent).slice(0, 110), M + 16, y + 40);
+      y += 10;
+    }
+    y += 48;
+    if (y > H - 120){ break; }
+  }
+
+  y = H - 92;
+  line();
+  g.fillStyle = '#98a1ad'; g.font = F(9);
+  const foot = [
+    'Each signature above was applied by the named signer in their own browser, on a copy of this',
+    'document delivered to them by the sender. Timestamps are taken from the signing device.',
+    'This certificate is informational and is not a substitute for a notarised or qualified signature.'
+  ];
+  foot.forEach((t, i) => g.fillText(t, M, y + i * 12));
+
+  return await canvasPng(c);
+}
+
+/* ---------------- flatten everything into a signed PDF ---------------- */
+async function buildSignedPdf(pdfBytes, doc){
+  const {PDFDocument, degrees} = PDFLib;
+  const pdf = await PDFDocument.load(pdfBytes.slice(0), {ignoreEncryption: true});
+  const pages = pdf.getPages();
+
+  for (const f of doc.fields){
+    if (!hasValue(f)) continue;
+    const page = pages[f.page];
+    if (!page) continue;
+    const W = page.getWidth(), H = page.getHeight();
+    const rot = ((page.getRotation().angle % 360) + 360) % 360;
+    const swap = (rot === 90 || rot === 270);
+    const vW = swap ? H : W, vH = swap ? W : H;
+
+    const vx = f.x * vW, vy = f.y * vH, vw = f.w * vW, vh = f.h * vH;
+    if (vw < 1 || vh < 1) continue;
+
+    let png;
+    try { png = await fieldPng(f, vw, vh); } catch(e){ continue; }
+    const img = await pdf.embedPng(png);
+    const a = anchorFor(rot, W, H, vx, vy + vh);
+    page.drawImage(img, {x: a.x, y: a.y, width: vw, height: vh, rotate: degrees(rot)});
+  }
+
+  // Certificate page, sized to match the first page where sensible.
+  const first = pages[0];
+  const aw = first ? Math.min(Math.max(first.getWidth(), 400), 1000) : 612;
+  const ah = first ? Math.min(Math.max(first.getHeight(), 400), 1400) : 792;
+  const ap = pdf.addPage([aw, ah]);
+  const aimg = await pdf.embedPng(await auditPng(doc, aw, ah));
+  ap.drawImage(aimg, {x: 0, y: 0, width: aw, height: ah});
+
+  pdf.setTitle(doc.title + ' (signed)');
+  pdf.setProducer('Signet');
+  pdf.setCreator('Signet');
+  pdf.setModificationDate(new Date());
+
+  return await pdf.save();
+}
+
+/* ---------------- signature capture ---------------- */
+function makePad(canvas){
+  const g = canvas.getContext('2d');
+  let drawing = false, last = null, dirty = false;
+  let bounds = null;
+
+  function size(){
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(r.width * dpr);
+    canvas.height = Math.round(r.height * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.lineWidth = 2.6; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = '#101820';
+  }
+  function pt(e){
+    const r = canvas.getBoundingClientRect();
+    return {x: e.clientX - r.left, y: e.clientY - r.top};
+  }
+  function mark(p){
+    if (!bounds) bounds = {x0: p.x, y0: p.y, x1: p.x, y1: p.y};
+    else {
+      bounds.x0 = Math.min(bounds.x0, p.x); bounds.y0 = Math.min(bounds.y0, p.y);
+      bounds.x1 = Math.max(bounds.x1, p.x); bounds.y1 = Math.max(bounds.y1, p.y);
+    }
+  }
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch(_){}
+    drawing = true; dirty = true;
+    last = pt(e); mark(last);
+    g.beginPath(); g.moveTo(last.x, last.y); g.lineTo(last.x + 0.1, last.y); g.stroke();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    e.preventDefault();
+    const p = pt(e); mark(p);
+    const mid = {x: (last.x + p.x) / 2, y: (last.y + p.y) / 2};
+    g.beginPath(); g.moveTo(last.x, last.y); g.quadraticCurveTo(last.x, last.y, mid.x, mid.y); g.stroke();
+    last = p;
+  });
+  const stop = () => { drawing = false; };
+  canvas.addEventListener('pointerup', stop);
+  canvas.addEventListener('pointercancel', stop);
+  canvas.addEventListener('pointerleave', stop);
+
+  size();
+  return {
+    clear(){ g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,canvas.width,canvas.height); size(); dirty = false; bounds = null; },
+    isEmpty(){ return !dirty; },
+    resize: size,
+    /* trimmed, transparent PNG data URL */
+    toDataURL(){
+      if (!dirty || !bounds) return null;
+      const dpr = canvas.width / canvas.getBoundingClientRect().width;
+      const pad = 8;
+      const x0 = Math.max(0, (bounds.x0 - pad) * dpr), y0 = Math.max(0, (bounds.y0 - pad) * dpr);
+      const x1 = Math.min(canvas.width,  (bounds.x1 + pad) * dpr);
+      const y1 = Math.min(canvas.height, (bounds.y1 + pad) * dpr);
+      const w = Math.max(4, x1 - x0), h = Math.max(4, y1 - y0);
+      const o = document.createElement('canvas');
+      o.width = w; o.height = h;
+      o.getContext('2d').drawImage(canvas, x0, y0, w, h, 0, 0, w, h);
+      return o.toDataURL('image/png');
+    }
+  };
+}
+
+function typedSignature(text, font){
+  text = String(text || '').trim();
+  if (!text) return null;
+  const S = 3, size = 64;
+  const m = document.createElement('canvas').getContext('2d');
+  m.font = size + 'px ' + font;
+  const w = Math.ceil(m.measureText(text).width) + 28;
+  const c = document.createElement('canvas');
+  c.width = w * S; c.height = Math.round(size * 1.75) * S;
+  const g = c.getContext('2d');
+  g.scale(S, S);
+  g.fillStyle = '#101820';
+  g.font = size + 'px ' + font;
+  g.textBaseline = 'alphabetic';
+  g.fillText(text, 14, size * 1.18);
+  return c.toDataURL('image/png');
+}
+
+/* Lift a photographed signature off its paper background. */
+async function cleanUpload(file, remove){
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await loadImg(url);
+    const max = 1400;
+    const r = Math.min(1, max / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0, c.width, c.height);
+    if (remove){
+      const d = g.getImageData(0, 0, c.width, c.height), px = d.data;
+      for (let i = 0; i < px.length; i += 4){
+        const lum = 0.299*px[i] + 0.587*px[i+1] + 0.114*px[i+2];
+        if (lum > 186) px[i+3] = 0;
+        else if (lum > 118){ px[i+3] = Math.round(px[i+3] * (186 - lum) / 68); }
+        else { px[i] = 16; px[i+1] = 24; px[i+2] = 32; }
+      }
+      g.putImageData(d, 0, 0);
+    }
+    return c.toDataURL('image/png');
+  } finally { URL.revokeObjectURL(url); }
+}
+
+/* ---------------- local remembered signature ---------------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem('signet.' + k); return v == null ? d : JSON.parse(v); }
+             catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem('signet.' + k, JSON.stringify(v)); } catch(e){} },
+  del(k){ try { localStorage.removeItem('signet.' + k); } catch(e){} }
+};
+
+return {TYPES, COLORS, PDFJS_WORKER, TEXT_FONT, uid, esc, clamp, fmtDate, fmtStamp, isEmail,
+        bytesToB64, b64ToBytes, download, safeName, toast, loadImg, canvasPng,
+        openPdf, pageGeometry, renderPageTo, fieldPng, auditPng, anchorFor, hasValue, libWarning,
+        TOUCH, shareOrDownload, canShareFile,
+        buildSignedPdf, makePad, typedSignature, cleanUpload, store};
+})();
+</script>
+
+<!-- =========================================================================
+     SIGNER APP — the JS that runs inside a generated signing packet.
+     Kept here so the console can copy it verbatim into the packet.
+     ========================================================================= -->
+<script type="text/plain" id="signerjs">
+'use strict';
+(function(){
+const S = window.SG;
+const DOC = window.__PACKET__;
+const root = document.getElementById('root');
+
+let pdfBytes = S.b64ToBytes(DOC.pdf);
+let geo = [], pdf = null;
+let me = DOC.signers.find(s => s.id === DOC.currentSigner) || DOC.signers[0];
+let adopted = S.store.get('sig', null);
+let finished = false;
+
+const mine = () => DOC.fields.filter(f => f.signer === me.id);
+const required = () => mine().filter(f => f.required);
+const doneCount = () => required().filter(f => S.hasValue(f)).length;
+const allDone = () => doneCount() === required().length;
+
+/* ---------------- shell ---------------- */
+root.innerHTML =
+  '<div class="app">' +
+    '<div class="sheader">' +
+      '<div class="brand"><span class="mark">✒</span><span>Signet</span></div>' +
+      '<div style="min-width:0">' +
+        '<div class="ti">' + S.esc(DOC.title) + '</div>' +
+        '<div class="fr">Sent by <b>' + S.esc(DOC.sender.name || 'the sender') + '</b>' +
+          (DOC.sender.email ? ' · ' + S.esc(DOC.sender.email) : '') + '</div>' +
+      '</div>' +
+      '<div class="spacer"></div>' +
+      '<div class="fr" style="text-align:right">Signing as<br><b style="color:var(--ink)">' +
+        S.esc(me.name || 'you') + '</b></div>' +
+    '</div>' +
+    '<div class="stage" id="stage"><div class="pages" id="pages"></div></div>' +
+  '</div>' +
+  '<div class="sbar" id="sbar"></div>';
+
+const stage = document.getElementById('stage');
+const pagesEl = document.getElementById('pages');
+
+/* ---------------- render ---------------- */
+async function boot(){
+  const warn = S.libWarning();
+  if (warn){ pagesEl.innerHTML = warn; document.getElementById('sbar').classList.add('hidden'); return; }
+  pagesEl.innerHTML = '<div class="empty" style="margin:40px auto;max-width:300px">Loading document…</div>';
+  try {
+    pdf = await S.openPdf(pdfBytes);
+    geo = await S.pageGeometry(pdf);
+  } catch(e){
+    pagesEl.innerHTML = '<div class="empty" style="margin:40px auto;max-width:420px">' +
+      'This document could not be opened. Ask the sender to re-send it.</div>';
+    return;
+  }
+  await renderPages();
+  drawBar();
+  const first = mine().find(f => !S.hasValue(f));
+  if (first) setTimeout(() => scrollToField(first.id), 420);
+}
+
+let renderGen = 0;
+async function renderPages(){
+  const gen = ++renderGen;
+  pagesEl.innerHTML = '';
+  if (DOC.message){
+    const m = document.createElement('div');
+    m.className = 'msgbox';
+    m.innerHTML = '<b>Message from ' + S.esc(DOC.sender.name || 'sender') + '</b>' + S.esc(DOC.message);
+    pagesEl.appendChild(m);
+  }
+  const avail = Math.min(stage.clientWidth - 56, 860);
+  for (const p of geo){
+    if (gen !== renderGen) return;          // a newer render superseded this one
+    const wrap = document.createElement('div');
+    wrap.className = 'pagewrap';
+    wrap.dataset.page = p.num - 1;
+    const cv = document.createElement('canvas');
+    wrap.appendChild(cv);
+    const layer = document.createElement('div');
+    layer.className = 'layer';
+    wrap.appendChild(layer);
+    pagesEl.appendChild(wrap);
+    try { await S.renderPageTo(p.page, cv, Math.min(avail, p.w * 1.5)); }
+    catch(err){ console.error('page ' + p.num + ' failed to render', err); }
+    wrap.style.width = cv.style.width;
+  }
+  paintFields();
+}
+
+function paintFields(){
+  document.querySelectorAll('.layer').forEach(l => l.innerHTML = '');
+  for (const f of DOC.fields){
+    const wrap = pagesEl.querySelector('.pagewrap[data-page="' + f.page + '"]');
+    if (!wrap) continue;
+    const layer = wrap.querySelector('.layer');
+    const el = document.createElement('div');
+    const isMine = f.signer === me.id;
+    const filled = S.hasValue(f);
+    const signer = DOC.signers.find(s => s.id === f.signer) || {};
+    el.className = 'fld ' + (isMine ? (filled ? 'filled' : 'todo') : 'other readonly') +
+                   (f.required && isMine ? ' req' : '');
+    el.style.cssText = 'left:' + (f.x*100) + '%;top:' + (f.y*100) + '%;width:' + (f.w*100) +
+                       '%;height:' + (f.h*100) + '%;--fc:' + (signer.color || '#4f46e5');
+    el.dataset.id = f.id;
+    if (filled) el.innerHTML = valueHtml(f);
+    else el.innerHTML = '<span class="cap">' + S.esc(S.TYPES[f.type].label) +
+                        (f.required ? ' *' : '') + '</span>' +
+                        (isMine ? '<span class="tag">Click to ' +
+                          (f.type === 'signature' ? 'sign' : 'fill') + '</span>' : '');
+    if (isMine && !finished) el.addEventListener('click', () => fillField(f));
+    layer.appendChild(el);
+  }
+}
+
+function valueHtml(f){
+  if (f.type === 'signature' || f.type === 'initials')
+    return '<span class="val"><img src="' + S.esc(f.value) + '" alt=""></span>';
+  if (f.type === 'check')
+    return '<span class="val" style="justify-content:center;font-size:1.1em;color:#0f1720">✓</span>';
+  return '<span class="val"><span style="font-size:min(100%,1em)">' + S.esc(f.value) + '</span></span>';
+}
+
+function scrollToField(id){
+  const el = document.querySelector('.fld[data-id="' + id + '"]');
+  if (!el) return;
+  el.scrollIntoView({behavior: 'smooth', block: 'center'});
+}
+
+/* ---------------- filling ---------------- */
+function fillField(f){
+  if (finished) return;
+  if (f.type === 'check'){ f.value = !f.value; paintFields(); drawBar(); return; }
+  if (f.type === 'signature' || f.type === 'initials'){
+    if (adopted && f.type === 'signature'){ f.value = adopted; paintFields(); drawBar(); next(f); return; }
+    openSignature(f.type, (dataUrl, remember) => {
+      f.value = dataUrl;
+      if (remember && f.type === 'signature'){ adopted = dataUrl; S.store.set('sig', dataUrl); }
+      paintFields(); drawBar(); next(f);
+    });
+    return;
+  }
+  const seed = f.value || (f.type === 'date' ? S.fmtDate() :
+                           f.type === 'name' ? (me.name || '') :
+                           f.type === 'email' ? (me.email || '') : '');
+  openPrompt(S.TYPES[f.type].label, seed, v => {
+    f.value = v; paintFields(); drawBar(); next(f);
+  });
+}
+
+function next(from){
+  const list = mine();
+  const i = list.indexOf(from);
+  const nxt = list.slice(i + 1).find(x => !S.hasValue(x)) || list.find(x => !S.hasValue(x));
+  if (nxt) setTimeout(() => scrollToField(nxt.id), 260);
+}
+
+/* ---------------- bottom bar ---------------- */
+function drawBar(){
+  const bar = document.getElementById('sbar');
+  if (finished){ bar.classList.add('hidden'); return; }
+  bar.classList.remove('hidden');
+  const total = required().length, done = doneCount();
+  const pct = total ? Math.round(done / total * 100) : 100;
+  bar.innerHTML =
+    '<div class="prog">' +
+      '<div class="lbl">' + done + ' of ' + total + ' required<small>' +
+        (allDone() ? 'All set — you can finish' : 'Click each highlighted box') + '</small></div>' +
+      '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+    '</div>' +
+    (allDone() ? '' : '<button class="btn" id="goto">Next field</button>') +
+    '<button class="btn primary lg" id="finish"' + (allDone() ? '' : ' disabled') +
+      '>Finish &amp; download signed PDF</button>';
+  const g = document.getElementById('goto');
+  if (g) g.onclick = () => { const n = mine().find(f => !S.hasValue(f)); if (n) scrollToField(n.id); };
+  document.getElementById('finish').onclick = confirmFinish;
+}
+
+/* ---------------- modals ---------------- */
+function modal(html, wide){
+  const scrim = document.createElement('div');
+  scrim.className = 'scrim';
+  scrim.innerHTML = '<div class="modal' + (wide ? ' wide' : '') + '">' + html + '</div>';
+  document.body.appendChild(scrim);
+  scrim.addEventListener('mousedown', e => { if (e.target === scrim) scrim.remove(); });
+  const esc = e => { if (e.key === 'Escape'){ scrim.remove(); document.removeEventListener('keydown', esc); } };
+  document.addEventListener('keydown', esc);
+  const x = scrim.querySelector('.x');
+  if (x) x.onclick = () => scrim.remove();
+  return scrim;
+}
+
+function openPrompt(label, seed, cb){
+  const m = modal(
+    '<div class="mhead"><div><h2>' + S.esc(label) + '</h2></div><button class="x">×</button></div>' +
+    '<div class="mbody"><input class="inp" id="pv" value="' + S.esc(seed) + '"></div>' +
+    '<div class="mfoot"><div class="spacer"></div><button class="btn" id="pc">Cancel</button>' +
+    '<button class="btn primary" id="po">Apply</button></div>');
+  const inp = m.querySelector('#pv');
+  inp.focus(); inp.select();
+  const ok = () => { const v = inp.value.trim(); m.remove(); if (v) cb(v); };
+  m.querySelector('#po').onclick = ok;
+  m.querySelector('#pc').onclick = () => m.remove();
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+}
+
+function openSignature(kind, cb){
+  const isInit = kind === 'initials';
+  const seed = isInit
+    ? (me.name || '').split(/\s+/).map(w => w[0] || '').join('').slice(0, 4).toUpperCase()
+    : (me.name || '');
+  const m = modal(
+    '<div class="mhead"><div><h2>' + (isInit ? 'Your initials' : 'Your signature') + '</h2>' +
+      '<p>Draw it, type it, or upload a photo. It stays on this device.</p></div>' +
+      '<button class="x">×</button></div>' +
+    '<div class="mbody">' +
+      '<div class="tabs"><button class="tab on" data-t="draw">Draw</button>' +
+        '<button class="tab" data-t="type">Type</button>' +
+        '<button class="tab" data-t="upload">Upload</button></div>' +
+      '<div data-p="draw">' +
+        '<div class="padwrap"><canvas class="pad" id="pad"></canvas>' +
+          '<div class="base"></div><div class="xmark">✕</div></div>' +
+        '<div style="display:flex;margin-top:9px"><button class="btn ghost" id="clr">Clear</button></div>' +
+      '</div>' +
+      '<div data-p="type" class="hidden">' +
+        '<input class="inp" id="tv" placeholder="Type your name" value="' + S.esc(seed) + '">' +
+        '<div class="fonts" id="fonts"></div>' +
+        '<div class="preview" id="tprev"></div>' +
+      '</div>' +
+      '<div data-p="upload" class="hidden">' +
+        '<input type="file" accept="image/*" class="inp" id="uf">' +
+        '<label class="chk" style="margin-top:11px"><input type="checkbox" id="ub" checked>' +
+          'Remove the paper background</label>' +
+        '<div class="preview" id="uprev"><span class="note">Photograph your signature on white paper</span></div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="mfoot">' +
+      (isInit ? '' : '<label class="chk"><input type="checkbox" id="rem" checked>Remember on this device</label>') +
+      '<div class="spacer"></div><button class="btn" id="cancel">Cancel</button>' +
+      '<button class="btn primary" id="apply">Apply</button></div>', true);
+
+  const pad = S.makePad(m.querySelector('#pad'));
+  let tab = 'draw', typed = null, uploaded = null;
+
+  m.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+    tab = b.dataset.t;
+    m.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+    m.querySelectorAll('[data-p]').forEach(p => p.classList.toggle('hidden', p.dataset.p !== tab));
+    if (tab === 'draw') pad.resize();
+    if (tab === 'type') renderTyped();
+  });
+  m.querySelector('#clr').onclick = () => pad.clear();
+
+  const FONTS = ['"Dancing Script",cursive', '"Great Vibes",cursive', '"Caveat",cursive',
+                 '"Brush Script MT","Segoe Script",cursive'];
+  let fi = 0;
+  const fw = m.querySelector('#fonts');
+  FONTS.forEach((f, i) => {
+    const b = document.createElement('button');
+    b.className = 'fontpick' + (i === 0 ? ' on' : '');
+    b.style.fontFamily = f; b.textContent = 'Abc';
+    b.onclick = () => { fi = i; fw.querySelectorAll('.fontpick').forEach((x, j) => x.classList.toggle('on', j === i)); renderTyped(); };
+    fw.appendChild(b);
+  });
+  function renderTyped(){
+    typed = S.typedSignature(m.querySelector('#tv').value, FONTS[fi]);
+    m.querySelector('#tprev').innerHTML = typed ? '<img src="' + typed + '" alt="">' :
+      '<span class="note">Type your name above</span>';
+  }
+  m.querySelector('#tv').addEventListener('input', renderTyped);
+
+  const uf = m.querySelector('#uf'), ub = m.querySelector('#ub');
+  async function doUpload(){
+    if (!uf.files || !uf.files[0]) return;
+    uploaded = await S.cleanUpload(uf.files[0], ub.checked);
+    m.querySelector('#uprev').innerHTML = '<img src="' + uploaded + '" alt="">';
+  }
+  uf.onchange = doUpload; ub.onchange = doUpload;
+
+  m.querySelector('#cancel').onclick = () => m.remove();
+  m.querySelector('#apply').onclick = () => {
+    let out = null;
+    if (tab === 'draw') out = pad.toDataURL();
+    else if (tab === 'type') out = typed;
+    else out = uploaded;
+    if (!out){ S.toast('Nothing to apply yet'); return; }
+    const rem = m.querySelector('#rem');
+    m.remove();
+    cb(out, rem ? rem.checked : false);
+  };
+  setTimeout(() => pad.resize(), 30);
+}
+
+/* ---------------- finish ---------------- */
+function confirmFinish(){
+  const m = modal(
+    '<div class="mhead"><div><h2>Confirm and sign</h2>' +
+      '<p>Check your details, then apply your signature to the document.</p></div>' +
+      '<button class="x">×</button></div>' +
+    '<div class="mbody">' +
+      '<div class="field"><label>Your full name</label>' +
+        '<input class="inp" id="cn" value="' + S.esc(me.name || '') + '"></div>' +
+      '<div class="field"><label>Your email</label>' +
+        '<input class="inp" id="ce" value="' + S.esc(me.email || '') + '"></div>' +
+      '<label class="chk" style="margin-top:13px;align-items:flex-start">' +
+        '<input type="checkbox" id="cc" style="margin-top:2px">' +
+        '<span>I agree that my electronic signature is the legal equivalent of my ' +
+        'handwritten signature on this document.</span></label>' +
+    '</div>' +
+    '<div class="mfoot"><div class="spacer"></div>' +
+      '<button class="btn" id="cx">Back</button>' +
+      '<button class="btn primary" id="cgo" disabled>Sign document</button></div>');
+  const cc = m.querySelector('#cc'), go = m.querySelector('#cgo');
+  cc.onchange = () => { go.disabled = !cc.checked; };
+  m.querySelector('#cx').onclick = () => m.remove();
+  go.onclick = async () => {
+    me.name = m.querySelector('#cn').value.trim() || me.name;
+    me.email = m.querySelector('#ce').value.trim() || me.email;
+    me.signedAt = new Date().toISOString();
+    me.agent = navigator.userAgent;
+    go.disabled = true; go.textContent = 'Signing…';
+    try {
+      await finish();
+      m.remove();
+    } catch(e){
+      go.disabled = false; go.textContent = 'Sign document';
+      S.toast('Could not build the PDF: ' + e.message, 5000);
+    }
+  };
+}
+
+async function finish(){
+  const bytes = await S.buildSignedPdf(pdfBytes, DOC);
+  const fname = S.safeName(DOC.title) + ' — signed.pdf';
+  const pdfBlob = new Blob([bytes], {type: 'application/pdf'});
+  // On a phone, hand it straight to the share sheet (Mail, WhatsApp…); a
+  // download would land in Files and be a chore to attach.
+  const how = await S.shareOrDownload(fname, pdfBlob, 'Signed: ' + DOC.title);
+
+  finished = true;
+  paintFields();
+  drawBar();
+
+  const waiting = DOC.signers.filter(s => s.id !== me.id && !s.signedAt &&
+                                          DOC.fields.some(f => f.signer === s.id));
+
+  const subject = 'Signed: ' + DOC.title;
+  const body = 'Hi ' + (DOC.sender.name || '') + ',\n\n' +
+    'I have signed "' + DOC.title + '". The signed PDF is attached.\n\n' +
+    'Signed by: ' + (me.name || '') + '\n' +
+    'Date: ' + S.fmtStamp(me.signedAt) + '\n\n— sent from Signet';
+  const mailto = 'mailto:' + encodeURIComponent(DOC.sender.email || '') +
+    '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  const gmail = 'https://mail.google.com/mail/?view=cm&fs=1&to=' +
+    encodeURIComponent(DOC.sender.email || '') + '&su=' + encodeURIComponent(subject) +
+    '&body=' + encodeURIComponent(body);
+  const sharable = S.canShareFile(new File([], fname, {type: 'application/pdf'}));
+
+  document.getElementById('stage').innerHTML =
+    '<div class="done">' +
+      '<div class="tick">✓</div>' +
+      '<h1>Signed</h1>' +
+      '<p><b>' + S.esc(fname) + '</b> ' +
+      (how === 'shared' ? 'is ready to send' : 'has been saved to your device') + '.<br>' +
+      'Send it back to ' + S.esc(DOC.sender.name || 'the sender') +
+      (DOC.sender.email ? ' at ' + S.esc(DOC.sender.email) : '') + '.</p>' +
+      '<div class="donebtns">' +
+        (sharable
+          ? '<button class="btn primary lg block" id="share">Send the signed PDF →</button>' +
+            '<a class="btn block" href="' + mailto + '">Compose the email myself</a>'
+          : '<a class="btn primary lg block" href="' + gmail + '" target="_blank" rel="noopener">' +
+              'Reply in Gmail (then attach the PDF)</a>' +
+            '<a class="btn block" href="' + mailto + '">Use my default mail app</a>') +
+        '<button class="btn ghost block" id="again">Save the PDF again</button>' +
+      '</div>' +
+      (waiting.length
+        ? '<p class="note" style="margin-top:20px">' + S.esc(waiting.map(s => s.name || 'another signer').join(' and ')) +
+          ' still need' + (waiting.length === 1 ? 's' : '') + ' to sign. ' +
+          S.esc(DOC.sender.name || 'The sender') + ' will send them their own copy once this one is back.</p>'
+        : '') +
+      '<p class="note" style="margin-top:14px">Nothing was uploaded anywhere. The signed file ' +
+        'exists only on this device until you email it.</p>' +
+    '</div>';
+
+  const resend = () => S.shareOrDownload(fname, pdfBlob, 'Signed: ' + DOC.title);
+  document.getElementById('again').onclick = () => S.download(fname, pdfBlob);
+  const sh = document.getElementById('share');
+  if (sh) sh.onclick = resend;
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener('resize', (() => {
+  let t; return () => { clearTimeout(t); t = setTimeout(() => { if (!finished) renderPages(); }, 220); };
+})());
+// A packet opened in a background tab renders only partially; redo it on focus.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !finished) renderPages();
+});
+
+boot();
+})();
+</script>
+
+<!-- =========================================================================
+     CONSOLE — the app you use to prepare and send documents.
+     ========================================================================= -->
+<script>
+(function boot(){
+  const s = document.createElement('script');
+  s.textContent = document.getElementById('engine').textContent;
+  document.head.appendChild(s);
+})();
+
+(function(){
+'use strict';
+const S = window.SG;
+const root = document.getElementById('root');
+
+/* ---------------- state ---------------- */
+const A = {
+  pdfBytes: null,
+  pdfB64: null,
+  pdf: null,
+  geo: [],
+  step: 1,
+  active: null,       // active signer id
+  sel: null,          // selected field id
+  armed: null,        // armed field type
+  doc: null
+};
+
+function blankDoc(){
+  const meId = S.uid('r');
+  return {
+    id: 'SGT-' + Date.now().toString(36).toUpperCase() + '-' + S.uid('').slice(0,4).toUpperCase(),
+    title: 'Untitled document',
+    message: '',
+    createdAt: new Date().toISOString(),
+    pageCount: 0,
+    sender: S.store.get('sender', {name: '', email: ''}),
+    signers: [
+      {id: meId, name: 'Me', email: '', color: S.COLORS[0], isMe: true, signedAt: null},
+      {id: S.uid('r'), name: '', email: '', color: S.COLORS[1], isMe: false, signedAt: null}
+    ],
+    fields: []
+  };
+}
+
+const signerOf = id => A.doc.signers.find(s => s.id === id);
+const fieldOf  = id => A.doc.fields.find(f => f.id === id);
+const fieldsOf = id => A.doc.fields.filter(f => f.signer === id);
+
+/* ---------------- start screen ---------------- */
+function renderStart(){
+  root.innerHTML =
+    '<div class="start" id="start"><div class="startcard">' +
+      '<h1>Sign it, or send it to be signed.</h1>' +
+      '<p class="sub">Drop a PDF in, put signature boxes where they belong, and email a signing ' +
+      'request that opens on any device. Your document never touches a server.</p>' +
+      '<div class="drop" id="drop">' +
+        '<div class="big">📄</div>' +
+        '<div class="t1">Drop a PDF here</div>' +
+        '<div class="t2">or tap to choose one · your file stays on this device</div>' +
+      '</div>' +
+      '<input type="file" accept="application/pdf,.pdf" id="pick" class="hidden">' +
+      '<div class="orbar"><span>or</span></div>' +
+      '<button class="btn lg block" id="wassent">✍  I was asked to sign something</button>' +
+      '<input type="file" id="picksignet" class="hidden">' +
+      '<div style="margin-top:12px"><button class="btn ghost" id="resume">Resume a saved draft…</button></div>' +
+      '<div class="flow">' +
+        '<div class="flowc"><div class="n">1</div><b>Place</b><span>Put Signature, Date and Text boxes onto the page, one colour per person.</span></div>' +
+        '<div class="flowc"><div class="n">2</div><b>Send</b><span>Signet writes the Gmail message and gives you a small file to attach.</span></div>' +
+        '<div class="flowc"><div class="n">3</div><b>Get it back</b><span>They open this page, load the file, sign, and send you the finished PDF.</span></div>' +
+      '</div>' +
+    '</div></div>';
+
+  const warn = S.libWarning();
+  if (warn){
+    document.querySelector('.startcard').innerHTML =
+      '<h1>Signet</h1>' + warn +
+      '<button class="btn lg" onclick="location.reload()">Reload</button>';
+    return;
+  }
+
+  const drop = document.getElementById('drop');
+  const pick = document.getElementById('pick');
+  drop.onclick = () => pick.click();
+  pick.onchange = () => { if (pick.files[0]) loadPdfFile(pick.files[0]); };
+
+  // One picker serves both "I was asked to sign" and "resume a draft" — the file
+  // itself says which it is. No `accept` filter: iOS greys out files whose
+  // extension it does not recognise, which would hide the very file we want.
+  const sp = document.getElementById('picksignet');
+  document.getElementById('wassent').onclick = () => sp.click();
+  document.getElementById('resume').onclick = () => sp.click();
+  sp.onchange = () => { if (sp.files[0]) loadSignetFile(sp.files[0]); };
+
+  ['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add('over');
+  }));
+  ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove('over');
+  }));
+  drop.addEventListener('drop', e => {
+    const f = e.dataTransfer.files[0];
+    if (f) (/\.(signet|json)$/i.test(f.name) ? loadSignetFile : loadPdfFile)(f);
+  });
+  ['dragover','drop'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
+}
+
+async function loadPdfFile(file){
+  if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)){
+    S.toast('That is not a PDF file'); return;
+  }
+  const buf = new Uint8Array(await file.arrayBuffer());
+  A.doc = blankDoc();
+  A.doc.title = file.name.replace(/\.pdf$/i, '');
+  await useBytes(buf);
+}
+
+/* A .signet.json is either a draft you saved (has .doc) or a signing request
+   someone sent you (has .currentSigner). Route on the contents, not the name. */
+async function loadSignetFile(file){
+  let j;
+  try { j = JSON.parse(await file.text()); }
+  catch(e){ S.toast('That file is not a Signet file', 4000); return; }
+
+  if (j && j.currentSigner && j.pdf && Array.isArray(j.fields)){
+    startSigner(j);
+    return;
+  }
+  if (j && j.pdf && j.doc){
+    A.doc = j.doc;
+    await useBytes(S.b64ToBytes(j.pdf));
+    return;
+  }
+  S.toast('That file is not a signing request or a saved draft', 4500);
+}
+
+/* Signer mode is the same code that used to be emailed as a standalone page;
+   it now takes over this one. */
+function startSigner(packet){
+  window.__PACKET__ = packet;
+  root.innerHTML = '';
+  const el = document.createElement('script');
+  el.textContent = document.getElementById('signerjs').textContent;
+  document.body.appendChild(el);
+}
+
+async function useBytes(bytes){
+  A.pdfBytes = bytes;
+  try {
+    A.pdf = await S.openPdf(bytes);
+    A.geo = await S.pageGeometry(A.pdf);
+  } catch(e){
+    S.toast('This PDF could not be opened — it may be password protected', 4500);
+    return;
+  }
+  A.pdfB64 = S.bytesToB64(bytes);
+  A.doc.pageCount = A.geo.length;
+  A.active = A.doc.signers[1].id;
+  A.step = 2;
+  renderApp();
+}
+
+/* On phones the two rails slide over the page instead of flanking it.
+   Above 900px the toggles are hidden and these classes never apply. */
+function wireDrawers(){
+  const L = document.getElementById('railL'), R = document.getElementById('railR');
+  const bd = document.getElementById('railbd');
+  const shut = () => { L.classList.remove('open'); R.classList.remove('open'); bd.classList.remove('on'); };
+  const open = el => { shut(); el.classList.add('open'); bd.classList.add('on'); };
+  document.getElementById('tglL').onclick = () => L.classList.contains('open') ? shut() : open(L);
+  document.getElementById('tglR').onclick = () => R.classList.contains('open') ? shut() : open(R);
+  bd.onclick = shut;
+  A.shutDrawers = shut;
+}
+/* Placing a field or picking a tool should hand the page back to the user. */
+function closeDrawers(){ if (A.shutDrawers && window.matchMedia('(max-width:900px)').matches) A.shutDrawers(); }
+
+/* ---------------- main app ---------------- */
+function renderApp(){
+  root.innerHTML =
+    '<div class="app">' +
+      '<div class="topbar">' +
+        '<button class="btn ghost railtoggle" id="tglL" title="Tools">☰</button>' +
+        '<div class="brand"><span class="mark">✒</span><span>Signet</span></div>' +
+        '<input class="doctitle" id="title" value="' + S.esc(A.doc.title) + '">' +
+        '<button class="btn ghost railtoggle" id="tglR" title="Details">⋮</button>' +
+        '<div class="steps">' +
+          '<button class="step" data-s="2"><span class="n">1</span>Prepare</button>' +
+          '<span class="sep"></span>' +
+          '<button class="step" data-s="3"><span class="n">2</span>Send</button>' +
+        '</div>' +
+        '<button class="btn ghost" id="save">Save draft</button>' +
+        '<button class="btn ghost" id="restart">New</button>' +
+      '</div>' +
+      '<div class="body">' +
+        '<div class="rail" id="railL"></div>' +
+        '<div class="stage" id="stage"><div class="pages" id="pages"></div></div>' +
+        '<div class="rail right" id="railR"></div>' +
+        '<div class="railbd" id="railbd"></div>' +
+      '</div>' +
+    '</div>';
+
+  wireDrawers();
+  document.getElementById('title').addEventListener('input', e => { A.doc.title = e.target.value; });
+  document.getElementById('save').onclick = saveDraft;
+  document.getElementById('restart').onclick = () => {
+    if (confirm('Discard this document and start over?')) location.reload();
+  };
+  document.querySelectorAll('.step').forEach(b => b.onclick = () => { A.step = +b.dataset.s; drawChrome(); });
+
+  drawChrome();
+  renderPages();
+  bindKeys();
+  bindResize();
+}
+
+function drawChrome(){
+  document.querySelectorAll('.step').forEach(b => {
+    const n = +b.dataset.s;
+    b.classList.toggle('on', n === A.step);
+    b.classList.toggle('done', n < A.step);
+  });
+  drawLeft();
+  drawRight();
+  document.getElementById('stage').classList.toggle('arming', !!A.armed && A.step === 2);
+  paintFields();
+}
+
+/* ---------------- left rail ---------------- */
+function drawLeft(){
+  const rail = document.getElementById('railL');
+  if (A.step === 3){ drawLeftSend(rail); return; }
+
+  const rows = A.doc.signers.map(s => {
+    const n = fieldsOf(s.id).length;
+    return '<div class="rcp' + (s.id === A.active ? ' on' : '') + '" data-r="' + s.id +
+      '" style="--rc:' + s.color + '">' +
+      '<span class="dot"></span>' +
+      '<span class="who"><span class="nm">' +
+        S.esc(s.isMe ? 'Me' + (s.name && s.name !== 'Me' ? ' · ' + s.name : '') : (s.name || 'Signer ' +
+          (A.doc.signers.indexOf(s)))) + '</span>' +
+        '<span class="em">' + S.esc(s.email || (s.isMe ? 'you sign before sending' : 'no email yet')) + '</span></span>' +
+      (n ? '<span class="cnt">' + n + '</span>' : '') +
+      (s.isMe ? '' : '<button class="x" data-del="' + s.id + '" title="Remove">×</button>') +
+    '</div>';
+  }).join('');
+
+  const tools = Object.keys(S.TYPES).map(k =>
+    '<button class="tool' + (A.armed === k ? ' armed' : '') + (k === 'signature' ? ' wide' : '') +
+      '" data-t="' + k + '"><span class="ic">' + S.TYPES[k].icon + '</span>' +
+      S.esc(S.TYPES[k].label) + '</button>').join('');
+
+  rail.innerHTML =
+    '<div class="sect">' +
+      '<h3>Who signs <span class="hint">click to select</span></h3>' + rows +
+      '<button class="btn block" id="addr" style="margin-top:3px">+ Add a signer</button>' +
+    '</div>' +
+    '<div class="sect">' +
+      '<h3>Fields <span class="hint">drag onto the page</span></h3>' +
+      '<div class="tools">' + tools + '</div>' +
+      '<p class="note" style="margin:11px 0 0">Boxes you place go to <b style="color:' +
+        signerOf(A.active).color + '">' +
+        S.esc(signerOf(A.active).isMe ? 'you' : (signerOf(A.active).name || 'the selected signer')) +
+        '</b>.</p>' +
+    '</div>' +
+    '<div class="sect">' +
+      '<h3>Placed <span class="hint">' + A.doc.fields.length + '</span></h3>' +
+      (A.doc.fields.length ? '<div class="fieldlist" id="flist"></div>' :
+        '<div class="empty">No fields yet.<br>Pick a signer, then drag a field onto the page.</div>') +
+    '</div>';
+
+  rail.querySelectorAll('.rcp').forEach(el => el.onclick = e => {
+    if (e.target.dataset.del) return;
+    A.active = el.dataset.r; drawChrome();
+  });
+  rail.querySelectorAll('[data-del]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const id = b.dataset.del;
+    if (fieldsOf(id).length && !confirm('Remove this signer and their fields?')) return;
+    A.doc.fields = A.doc.fields.filter(f => f.signer !== id);
+    A.doc.signers = A.doc.signers.filter(s => s.id !== id);
+    if (A.active === id) A.active = A.doc.signers[A.doc.signers.length - 1].id;
+    drawChrome();
+  });
+  document.getElementById('addr').onclick = () => {
+    if (A.doc.signers.length >= 6){ S.toast('Six signers is plenty'); return; }
+    const s = {id: S.uid('r'), name: '', email: '',
+               color: S.COLORS[A.doc.signers.length % S.COLORS.length], isMe: false, signedAt: null};
+    A.doc.signers.push(s); A.active = s.id; drawChrome();
+  };
+  rail.querySelectorAll('.tool').forEach(b => bindToolDrag(b));
+
+  const fl = document.getElementById('flist');
+  if (fl){
+    fl.innerHTML = A.doc.fields.map(f => {
+      const s = signerOf(f.signer) || {};
+      return '<div class="fitem' + (f.id === A.sel ? ' on' : '') + '" data-f="' + f.id +
+        '" style="--fc:' + (s.color || '#888') + '"><span class="d"></span>' +
+        '<span class="t">' + S.esc(S.TYPES[f.type].label) + ' · ' +
+        S.esc(s.isMe ? 'me' : (s.name || 'signer')) + '</span>' +
+        '<span class="p">p' + (f.page + 1) + '</span></div>';
+    }).join('');
+    fl.querySelectorAll('.fitem').forEach(el => el.onclick = () => {
+      A.sel = el.dataset.f;
+      const t = document.querySelector('.fld[data-id="' + A.sel + '"]');
+      if (t) t.scrollIntoView({behavior: 'smooth', block: 'center'});
+      drawChrome();
+    });
+  }
+}
+
+/* ---------------- right rail ---------------- */
+function drawRight(){
+  const rail = document.getElementById('railR');
+  if (A.step === 3){ drawRightSend(rail); return; }
+
+  const s = signerOf(A.active);
+  const f = A.sel ? fieldOf(A.sel) : null;
+
+  rail.innerHTML =
+    '<div class="sect">' +
+      '<h3>Signer details</h3>' +
+      (s.isMe
+        ? '<div class="field"><label>Your name</label><input class="inp" id="sn" value="' +
+            S.esc(A.doc.sender.name) + '" placeholder="Jane Doe"></div>' +
+          '<div class="field"><label>Your email <span style="font-weight:450;color:var(--ink-3)">' +
+            '— where signed copies come back</span></label><input class="inp" id="se" value="' +
+            S.esc(A.doc.sender.email) + '" placeholder="you@gmail.com"></div>'
+        : '<div class="field"><label>Full name</label><input class="inp" id="rn" value="' +
+            S.esc(s.name) + '" placeholder="Their name"></div>' +
+          '<div class="field"><label>Email</label><input class="inp" id="re" value="' +
+            S.esc(s.email) + '" placeholder="them@example.com"></div>') +
+    '</div>' +
+    '<div class="sect">' +
+      '<h3>Selected field</h3>' +
+      (f ? fieldPanel(f) : '<div class="empty">Click a box on the page to change its label, ' +
+        'who it belongs to, or whether it is required.</div>') +
+    '</div>' +
+    '<div class="sect">' +
+      '<h3>Message to signers</h3>' +
+      '<textarea class="inp" id="msg" placeholder="Hi — please sign where highlighted. Thanks!">' +
+        S.esc(A.doc.message) + '</textarea>' +
+    '</div>' +
+    '<div class="sect">' +
+      '<button class="btn primary block lg" id="tosend">Continue to send →</button>' +
+      '<p class="note" style="margin-top:10px;text-align:center">' + A.doc.fields.length +
+        ' field' + (A.doc.fields.length === 1 ? '' : 's') + ' across ' + A.geo.length +
+        ' page' + (A.geo.length === 1 ? '' : 's') + '</p>' +
+    '</div>';
+
+  const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('input', fn); };
+  bind('sn', e => { A.doc.sender.name = e.target.value; S.store.set('sender', A.doc.sender);
+                    const me = A.doc.signers.find(x => x.isMe); me.name = e.target.value || 'Me'; softLeft(); });
+  bind('se', e => { A.doc.sender.email = e.target.value; S.store.set('sender', A.doc.sender);
+                    const me = A.doc.signers.find(x => x.isMe); me.email = e.target.value; softLeft(); });
+  bind('rn', e => { s.name = e.target.value; softLeft(); });
+  bind('re', e => { s.email = e.target.value; softLeft(); });
+  bind('msg', e => { A.doc.message = e.target.value; });
+
+  if (f){
+    bind('fl', e => { f.label = e.target.value; });
+    const rq = document.getElementById('fr');
+    if (rq) rq.onchange = e => { f.required = e.target.checked; paintFields(); };
+    const so = document.getElementById('fs');
+    if (so) so.onchange = e => { f.signer = e.target.value; drawChrome(); };
+    const dl = document.getElementById('fd');
+    if (dl) dl.onclick = () => { A.doc.fields = A.doc.fields.filter(x => x.id !== f.id); A.sel = null; drawChrome(); };
+  }
+  document.getElementById('tosend').onclick = () => { A.step = 3; drawChrome(); };
+}
+
+function fieldPanel(f){
+  const opts = A.doc.signers.map(s => '<option value="' + s.id + '"' +
+    (s.id === f.signer ? ' selected' : '') + '>' +
+    S.esc(s.isMe ? 'Me' : (s.name || 'Unnamed signer')) + '</option>').join('');
+  return '<div class="field"><label>Type</label>' +
+      '<div class="inp" style="background:var(--line-2);border-color:transparent">' +
+        S.TYPES[f.type].icon + ' ' + S.esc(S.TYPES[f.type].label) + ' · page ' + (f.page + 1) + '</div></div>' +
+    '<div class="field"><label>Assigned to</label>' +
+      '<select class="inp" id="fs">' + opts + '</select></div>' +
+    (f.type === 'text' ? '<div class="field"><label>Label shown to the signer</label>' +
+      '<input class="inp" id="fl" value="' + S.esc(f.label || '') + '" placeholder="e.g. Job title"></div>' : '') +
+    '<label class="chk" style="margin-top:4px"><input type="checkbox" id="fr"' +
+      (f.required ? ' checked' : '') + '>Required before they can finish</label>' +
+    '<button class="btn danger block" id="fd" style="margin-top:12px">Delete this field</button>';
+}
+
+function softLeft(){ drawLeft(); paintFields(); }
+
+/* ---------------- step 3: send ---------------- */
+function nextSigner(){
+  return A.doc.signers.find(s => !s.isMe && !s.signedAt && fieldsOf(s.id).length);
+}
+function myUnfilled(){
+  const me = A.doc.signers.find(s => s.isMe);
+  return fieldsOf(me.id).filter(f => f.required && !S.hasValue(f));
+}
+
+function drawLeftSend(rail){
+  const me = A.doc.signers.find(s => s.isMe);
+  const mineAll = fieldsOf(me.id);
+  const left = myUnfilled().length;
+
+  rail.innerHTML =
+    '<div class="sect">' +
+      '<h3>Your part</h3>' +
+      (mineAll.length
+        ? '<div class="note ' + (left ? 'warn' : 'info') + '">' +
+            (left ? left + ' of your own field' + (left === 1 ? '' : 's') +
+                    ' still needs filling. Click the highlighted boxes on the page.'
+                  : 'All of your fields are filled in.') + '</div>' +
+          '<button class="btn block" id="fillmine" style="margin-top:11px">' +
+            (left ? 'Fill my fields' : 'Review my fields') + '</button>'
+        : '<div class="empty">You did not assign any fields to yourself.</div>') +
+    '</div>' +
+    '<div class="sect">' +
+      '<h3>Send order</h3>' +
+      A.doc.signers.filter(s => !s.isMe).map((s, i) =>
+        '<div class="rcp" style="--rc:' + s.color + ';cursor:default">' +
+          '<span class="dot"></span><span class="who">' +
+          '<span class="nm">' + S.esc(s.name || 'Signer ' + (i + 1)) + '</span>' +
+          '<span class="em">' + S.esc(s.email || 'no email') + '</span></span>' +
+          '<span class="cnt">' + fieldsOf(s.id).length + '</span></div>').join('') +
+      '<p class="note" style="margin-top:8px">Send to one person at a time. When their signed PDF ' +
+        'comes back, load it here to prepare the next signer.</p>' +
+    '</div>' +
+    '<div class="sect"><button class="btn ghost block" id="back">← Back to editing</button></div>';
+
+  const fm = document.getElementById('fillmine');
+  if (fm) fm.onclick = () => { drawChrome();
+    const t = myUnfilled()[0] || fieldsOf(me.id)[0];
+    if (t){ const el = document.querySelector('.fld[data-id="' + t.id + '"]');
+            if (el) el.scrollIntoView({behavior:'smooth',block:'center'}); }
+    S.toast('Click the highlighted boxes to fill them in'); };
+  document.getElementById('back').onclick = () => { A.step = 2; drawChrome(); };
+}
+
+function drawRightSend(rail){
+  const target = nextSigner();
+  const problems = [];
+  if (!A.doc.sender.name) problems.push('Add your name so the signer knows who sent this.');
+  if (!S.isEmail(A.doc.sender.email)) problems.push('Add your email so they can send the signed PDF back.');
+  if (!target) problems.push('Add a signer with at least one field assigned to them.');
+  else if (!S.isEmail(target.email)) problems.push('Add an email address for ' + (target.name || 'the signer') + '.');
+  else if (!target.name) problems.push('Add a name for the signer.');
+  if (myUnfilled().length) problems.push('Fill in your own required fields first.');
+
+  rail.innerHTML =
+    '<div class="sect">' +
+      '<h3>Send for signature</h3>' +
+      (target
+        ? '<div class="kv"><b>To</b><span>' + S.esc(target.name || '—') +
+            '<br><span style="color:var(--ink-3)">' + S.esc(target.email || 'no email') + '</span></span></div>' +
+          '<div class="kv"><b>Document</b><span>' + S.esc(A.doc.title) + '</span></div>' +
+          '<div class="kv"><b>Their fields</b><span>' + fieldsOf(target.id).length + '</span></div>' +
+          '<div class="kv"><b>Envelope</b><span style="font-size:11.5px;color:var(--ink-3)">' +
+            S.esc(A.doc.id) + '</span></div>'
+        : '<div class="empty">No signer is ready yet.</div>') +
+    '</div>' +
+    (problems.length
+      ? '<div class="sect"><div class="note warn"><b>Before you send</b><ul style="margin:7px 0 0;padding-left:17px">' +
+          problems.map(p => '<li style="margin-bottom:3px">' + S.esc(p) + '</li>').join('') +
+        '</ul></div></div>'
+      : '') +
+    '<div class="sect">' +
+      '<button class="btn primary block lg" id="build"' + (problems.length ? ' disabled' : '') +
+        '>Build the signing request</button>' +
+      '<p class="note" style="margin-top:10px">Gives you a small file to attach to a Gmail ' +
+        'message. The signer opens Signet on any device — phone included — loads the file, ' +
+        'signs, and sends you the finished PDF.</p>' +
+    '</div>' +
+    '<div class="sect">' +
+      '<h3>Also useful</h3>' +
+      '<button class="btn block" id="signnow" style="margin-bottom:8px">Sign it myself &amp; export now</button>' +
+      '<button class="btn block" id="savedraft2">Save this draft</button>' +
+    '</div>';
+
+  const b = document.getElementById('build');
+  if (b && !b.disabled) b.onclick = () => buildPacket(target);
+  document.getElementById('signnow').onclick = exportNow;
+  document.getElementById('savedraft2').onclick = saveDraft;
+}
+
+/* ---------------- packet construction ---------------- */
+function buildPacket(target){
+  // Record our own signing before the packet is frozen, so the certificate
+  // credits the sender rather than listing them as unsigned.
+  const me = A.doc.signers.find(x => x.isMe);
+  if (fieldsOf(me.id).some(S.hasValue) && !me.signedAt){
+    me.signedAt = new Date().toISOString();
+    me.agent = navigator.userAgent;
+    me.name = A.doc.sender.name || 'Me';
+    me.email = A.doc.sender.email || '';
+  }
+  const packet = JSON.parse(JSON.stringify(A.doc));
+  packet.pdf = A.pdfB64;
+  packet.currentSigner = target.id;
+  packet.sender = {name: A.doc.sender.name, email: A.doc.sender.email};
+  // Strip signers who have nothing to do, but keep already-signed ones for the certificate.
+  packet.signers = packet.signers.filter(s => s.signedAt || fieldsOf(s.id).length || s.id === target.id);
+
+  const json  = JSON.stringify(packet);
+  const fname = S.safeName(A.doc.title) + ' — signing request.signet.json';
+  const blob  = new Blob([json], {type: 'application/json'});
+  S.shareOrDownload(fname, blob, 'Signing request')
+   .then(how => showSendModal(target, fname, Math.round(json.length / 1024), how));
+}
+
+function showSendModal(target, fname, kb, how){
+  const url = appUrl();
+  const subject = 'Please sign: ' + A.doc.title;
+  const body =
+    'Hi ' + (target.name ? target.name.split(/\s+/)[0] : '') + ',\n\n' +
+    'Please sign "' + A.doc.title + '". It takes about a minute — no account, no app, ' +
+    'and it works on a phone.\n\n' +
+    '  1. Save the attached file (' + fname + ') to your device.\n' +
+    '  2. Open this page in your browser:\n     ' + url + '\n' +
+    '  3. Choose "I was asked to sign", then pick the file you just saved.\n' +
+    '  4. Tap the highlighted boxes, then press Finish and send the signed PDF back to me.\n\n' +
+    (A.doc.message ? A.doc.message + '\n\n' : '') +
+    'Thanks,\n' + (A.doc.sender.name || '');
+  const gmail = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(target.email) +
+    '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  const mailto = 'mailto:' + encodeURIComponent(target.email) + '?subject=' +
+    encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+
+  const where = how === 'shared' ? 'has been shared'
+              : how === 'cancelled' ? 'was not saved — use “Download again” below'
+              : 'has been saved to your Downloads folder';
+  const m = modal(
+    '<div class="mhead"><div><h2>Signing request ready</h2>' +
+      '<p><b>' + S.esc(fname) + '</b> (' + kb + '&nbsp;KB) ' + where + '.</p></div>' +
+      '<button class="x">×</button></div>' +
+    '<div class="mbody">' +
+      '<ol class="steplist">' +
+        '<li>Click <b>Open Gmail</b> below — the message to ' + S.esc(target.name || target.email) +
+          ' is already written, link included.</li>' +
+        '<li><b>Attach</b> the signing‑request file to that message.</li>' +
+        '<li>Send. They open the link on any device — phone included — load the file, sign, ' +
+          'and send the finished PDF back to ' + S.esc(A.doc.sender.email || 'you') + '.</li>' +
+      '</ol>' +
+      '<div class="note info" style="margin-top:6px">The document travels in the attachment, not ' +
+        'through the website — <b>' + S.esc(url) + '</b> only ever loads the blank app. ' +
+        '<button class="linkish" id="seturl">Change this address</button></div>' +
+    '</div>' +
+    '<div class="mfoot">' +
+      '<button class="btn ghost" id="again2">Download again</button>' +
+      '<div class="spacer"></div>' +
+      '<a class="btn" href="' + mailto + '">Default mail app</a>' +
+      '<a class="btn primary" href="' + gmail + '" target="_blank" rel="noopener">Open Gmail →</a>' +
+    '</div>');
+  m.querySelector('#again2').onclick = () => buildPacket(target);
+  m.querySelector('#seturl').onclick = () => {
+    const v = prompt('Web address where Signet is published.\n' +
+      'Signers open this to load the file you attach.', appUrl());
+    if (v && /^https?:\/\//i.test(v.trim())){
+      S.store.set('appurl', v.trim().replace(/\s+$/,''));
+      m.remove(); showSendModal(target, fname, kb, how);
+    } else if (v){ S.toast('That needs to start with https://'); }
+  };
+}
+
+/* Where signers should go to open the attachment. Defaults to wherever this
+   page is itself being served from, which is right once it is hosted; a
+   file:// copy has no useful address, so fall back to the published one. */
+const HOSTED_URL = '';
+function appUrl(){
+  const saved = S.store.get('appurl', null);
+  if (saved) return saved;
+  if (/^https?:$/i.test(location.protocol)) return location.origin + location.pathname.replace(/\/index\.html$/i, '/');
+  return HOSTED_URL || '(publish Signet first — click “Change this address”)';
+}
+
+/* ---------------- sign it myself / export ---------------- */
+async function exportNow(){
+  const unfilled = A.doc.fields.filter(f => f.required && !S.hasValue(f));
+  if (unfilled.length && !confirm(unfilled.length + ' required field(s) are still empty. Export anyway?')) return;
+  S.toast('Building PDF…');
+  try {
+    const me = A.doc.signers.find(x => x.isMe);
+    if (fieldsOf(me.id).some(S.hasValue) && !me.signedAt){
+      me.signedAt = new Date().toISOString();
+      me.agent = navigator.userAgent;
+      me.name = A.doc.sender.name || 'Me';
+      me.email = A.doc.sender.email || '';
+    }
+    const bytes = await S.buildSignedPdf(A.pdfBytes, A.doc);
+    const how = await S.shareOrDownload(S.safeName(A.doc.title) + ' — signed.pdf',
+      new Blob([bytes], {type: 'application/pdf'}), 'Signed: ' + A.doc.title);
+    if (how !== 'cancelled') S.toast(how === 'shared' ? 'Signed PDF ready to send' : 'Signed PDF downloaded');
+  } catch(e){ S.toast('Export failed: ' + e.message, 5000); }
+}
+
+function saveDraft(){
+  const payload = JSON.stringify({v: 1, pdf: A.pdfB64, doc: A.doc});
+  S.download(S.safeName(A.doc.title) + ' — draft.signet.json', new Blob([payload], {type: 'application/json'}));
+  S.toast('Draft saved — reopen it from the start screen');
+}
+
+/* ---------------- page rendering ---------------- */
+let renderGen = 0;
+async function renderPages(){
+  const gen = ++renderGen;
+  const pagesEl = document.getElementById('pages');
+  const stage = document.getElementById('stage');
+  const avail = Math.min(stage.clientWidth - 60, 900);
+  pagesEl.innerHTML = '';
+  for (const p of A.geo){
+    if (gen !== renderGen) return;          // a newer render superseded this one
+    const wrap = document.createElement('div');
+    wrap.className = 'pagewrap';
+    wrap.dataset.page = p.num - 1;
+    wrap.innerHTML = '<span class="pagenum">' + p.num + '</span>';
+    const cv = document.createElement('canvas');
+    wrap.appendChild(cv);
+    const layer = document.createElement('div');
+    layer.className = 'layer';
+    layer.dataset.page = p.num - 1;
+    wrap.appendChild(layer);
+    pagesEl.appendChild(wrap);
+    try { await S.renderPageTo(p.page, cv, Math.min(avail, p.w * 1.6)); }
+    catch(err){ console.error('page ' + p.num + ' failed to render', err); }
+    wrap.style.width = cv.style.width;
+    layer.addEventListener('click', e => {
+      if (e.target !== layer) return;
+      if (A.armed && A.step === 2) place(A.armed, p.num - 1, e);
+      else { A.sel = null; drawChrome(); }
+    });
+  }
+  paintFields();
+}
+
+function bindResize(){
+  let t;
+  window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(renderPages, 250); });
+  // A tab that was in the background may have rendered only partially.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) renderPages();
+  });
+}
+
+/* ---------------- field painting & interaction ---------------- */
+function paintFields(){
+  document.querySelectorAll('.layer').forEach(l => l.innerHTML = '');
+  const me = A.doc.signers.find(s => s.isMe);
+  for (const f of A.doc.fields){
+    const layer = document.querySelector('.layer[data-page="' + f.page + '"]');
+    if (!layer) continue;
+    const s = signerOf(f.signer) || {color: '#888'};
+    const filled = S.hasValue(f);
+    const selfMode = (A.step === 3 && f.signer === me.id);
+    const el = document.createElement('div');
+    el.className = 'fld' + (f.id === A.sel ? ' sel' : '') + (filled ? ' filled' : '') +
+                   (f.required && !filled ? ' req' : '') +
+                   (selfMode && !filled ? ' todo' : '') +
+                   (A.step === 3 && !selfMode ? ' other readonly' : '');
+    el.style.cssText = 'left:' + (f.x*100) + '%;top:' + (f.y*100) + '%;width:' + (f.w*100) +
+                       '%;height:' + (f.h*100) + '%;--fc:' + s.color;
+    el.dataset.id = f.id;
+
+    if (filled) el.innerHTML = valueHtml(f);
+    else el.innerHTML = '<span class="cap">' + S.esc(f.label || S.TYPES[f.type].label) + '</span>';
+
+    if (A.step === 2){
+      el.innerHTML += '<span class="tag">' + S.esc(S.TYPES[f.type].label) + ' · ' +
+        S.esc(s.isMe ? 'me' : (s.name || 'signer')) + '</span>' +
+        '<span class="hdl"></span><button class="del" title="Delete">×</button>';
+      bindFieldEdit(el, f);
+    } else if (selfMode){
+      el.addEventListener('click', () => selfFill(f));
+    }
+    layer.appendChild(el);
+  }
+}
+
+function valueHtml(f){
+  if (f.type === 'signature' || f.type === 'initials')
+    return '<span class="val"><img src="' + S.esc(f.value) + '" alt=""></span>';
+  if (f.type === 'check')
+    return '<span class="val" style="justify-content:center;color:#0f1720;font-weight:700">✓</span>';
+  return '<span class="val"><span>' + S.esc(f.value) + '</span></span>';
+}
+
+function bindFieldEdit(el, f){
+  el.querySelector('.del').onclick = e => {
+    e.stopPropagation();
+    A.doc.fields = A.doc.fields.filter(x => x.id !== f.id);
+    if (A.sel === f.id) A.sel = null;
+    drawChrome();
+  };
+  el.addEventListener('pointerdown', e => {
+    if (e.target.classList.contains('del')) return;
+    e.preventDefault(); e.stopPropagation();
+    A.sel = f.id;
+    document.querySelectorAll('.fld').forEach(x => x.classList.toggle('sel', x === el));
+    drawLeft(); drawRight();
+
+    const resizing = e.target.classList.contains('hdl');
+    const layer = el.parentElement;
+    const r = layer.getBoundingClientRect();
+    const x0 = e.clientX, y0 = e.clientY;
+    const f0 = {x: f.x, y: f.y, w: f.w, h: f.h};
+    el.classList.add('dragging');
+    try { el.setPointerCapture(e.pointerId); } catch(_){}
+
+    const move = ev => {
+      const dx = (ev.clientX - x0) / r.width, dy = (ev.clientY - y0) / r.height;
+      if (resizing){
+        f.w = S.clamp(f0.w + dx, 0.012, 1 - f.x);
+        f.h = S.clamp(f0.h + dy, 0.008, 1 - f.y);
+      } else {
+        f.x = S.clamp(f0.x + dx, 0, 1 - f.w);
+        f.y = S.clamp(f0.y + dy, 0, 1 - f.h);
+      }
+      el.style.left = (f.x*100) + '%'; el.style.top = (f.y*100) + '%';
+      el.style.width = (f.w*100) + '%'; el.style.height = (f.h*100) + '%';
+    };
+    const up = () => {
+      el.classList.remove('dragging');
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
+}
+
+/* ---------------- placing new fields ---------------- */
+function place(type, pageIdx, ev){
+  const layer = document.querySelector('.layer[data-page="' + pageIdx + '"]');
+  const r = layer.getBoundingClientRect();
+  const g = A.geo[pageIdx];
+  const T = S.TYPES[type];
+  const w = T.w / g.w, h = T.h / g.h;
+  const x = S.clamp((ev.clientX - r.left) / r.width - w / 2, 0, 1 - w);
+  const y = S.clamp((ev.clientY - r.top)  / r.height - h / 2, 0, 1 - h);
+  const f = {
+    id: S.uid('f'), signer: A.active, page: pageIdx,
+    x: x, y: y, w: w, h: h,
+    type: type, label: '', required: type !== 'text' && type !== 'check', value: null
+  };
+  A.doc.fields.push(f);
+  A.sel = f.id;
+  A.armed = null;
+  drawChrome();
+}
+
+function bindToolDrag(btn){
+  let ghost = null, moved = false, id = null;
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    moved = false; id = e.pointerId;
+    try { btn.setPointerCapture(id); } catch(_){}
+
+    const move = ev => {
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) < 5) return;
+      if (!moved){
+        moved = true;
+        A.armed = btn.dataset.t;
+        document.getElementById('stage').classList.add('arming');
+        ghost = document.createElement('div');
+        ghost.className = 'ghosttool';
+        ghost.textContent = S.TYPES[btn.dataset.t].icon + '  ' + S.TYPES[btn.dataset.t].label;
+        document.body.appendChild(ghost);
+      }
+      ghost.style.left = ev.clientX + 'px';
+      ghost.style.top = ev.clientY + 'px';
+    };
+    const up = ev => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      if (ghost){ ghost.remove(); ghost = null; }
+      if (!moved){
+        // plain click → arm / disarm. On a phone the tools live in a drawer that
+        // covers the page, so get it out of the way before asking for a tap.
+        A.armed = (A.armed === btn.dataset.t) ? null : btn.dataset.t;
+        drawChrome();
+        if (A.armed){
+          closeDrawers();
+          S.toast(S.TOUCH ? 'Now tap where it goes on the page'
+                          : 'Now click where it goes on the page');
+        }
+        return;
+      }
+      const under = document.elementFromPoint(ev.clientX, ev.clientY);
+      const layer = under && under.closest ? under.closest('.layer') : null;
+      if (layer){
+        document.getElementById('stage').classList.remove('arming');
+        place(btn.dataset.t, +layer.dataset.page, ev);
+      } else {
+        // Dropped off the page. Stay armed so the next click still places it.
+        S.toast('Drop it on the document — or just click where it goes');
+      }
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  });
+}
+
+/* ---------------- filling my own fields ---------------- */
+function selfFill(f){
+  if (f.type === 'check'){ f.value = !f.value; drawChrome(); return; }
+  if (f.type === 'signature' || f.type === 'initials'){
+    const saved = S.store.get('sig', null);
+    if (saved && f.type === 'signature' && !f.value){ f.value = saved; drawChrome(); return; }
+    openSignature(f.type, (url, remember) => {
+      f.value = url;
+      if (remember && f.type === 'signature') S.store.set('sig', url);
+      drawChrome();
+    });
+    return;
+  }
+  const seed = f.value || (f.type === 'date' ? S.fmtDate() :
+                           f.type === 'name'  ? (A.doc.sender.name || '') :
+                           f.type === 'email' ? (A.doc.sender.email || '') : '');
+  openPrompt(f.label || S.TYPES[f.type].label, seed, v => { f.value = v; drawChrome(); });
+}
+
+/* ---------------- shared modals (console copy) ---------------- */
+function modal(html, wide){
+  const scrim = document.createElement('div');
+  scrim.className = 'scrim';
+  scrim.innerHTML = '<div class="modal' + (wide ? ' wide' : '') + '">' + html + '</div>';
+  document.body.appendChild(scrim);
+  scrim.addEventListener('mousedown', e => { if (e.target === scrim) scrim.remove(); });
+  const onEsc = e => { if (e.key === 'Escape'){ scrim.remove(); document.removeEventListener('keydown', onEsc); } };
+  document.addEventListener('keydown', onEsc);
+  const x = scrim.querySelector('.x');
+  if (x) x.onclick = () => scrim.remove();
+  return scrim;
+}
+
+function openPrompt(label, seed, cb){
+  const m = modal(
+    '<div class="mhead"><div><h2>' + S.esc(label) + '</h2></div><button class="x">×</button></div>' +
+    '<div class="mbody"><input class="inp" id="pv" value="' + S.esc(seed) + '"></div>' +
+    '<div class="mfoot"><div class="spacer"></div><button class="btn" id="pc">Cancel</button>' +
+    '<button class="btn primary" id="po">Apply</button></div>');
+  const inp = m.querySelector('#pv');
+  inp.focus(); inp.select();
+  const ok = () => { const v = inp.value.trim(); m.remove(); if (v) cb(v); };
+  m.querySelector('#po').onclick = ok;
+  m.querySelector('#pc').onclick = () => m.remove();
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+}
+
+function openSignature(kind, cb){
+  const isInit = kind === 'initials';
+  const seed = isInit
+    ? (A.doc.sender.name || '').split(/\s+/).map(w => w[0] || '').join('').slice(0,4).toUpperCase()
+    : (A.doc.sender.name || '');
+  const m = modal(
+    '<div class="mhead"><div><h2>' + (isInit ? 'Your initials' : 'Your signature') + '</h2>' +
+      '<p>Draw it, type it, or upload a photo. It is remembered only on this device.</p></div>' +
+      '<button class="x">×</button></div>' +
+    '<div class="mbody">' +
+      '<div class="tabs"><button class="tab on" data-t="draw">Draw</button>' +
+        '<button class="tab" data-t="type">Type</button>' +
+        '<button class="tab" data-t="upload">Upload</button></div>' +
+      '<div data-p="draw"><div class="padwrap"><canvas class="pad" id="pad"></canvas>' +
+        '<div class="base"></div><div class="xmark">✕</div></div>' +
+        '<div style="display:flex;margin-top:9px"><button class="btn ghost" id="clr">Clear</button></div></div>' +
+      '<div data-p="type" class="hidden">' +
+        '<input class="inp" id="tv" placeholder="Type your name" value="' + S.esc(seed) + '">' +
+        '<div class="fonts" id="fonts"></div><div class="preview" id="tprev"></div></div>' +
+      '<div data-p="upload" class="hidden">' +
+        '<input type="file" accept="image/*" class="inp" id="uf">' +
+        '<label class="chk" style="margin-top:11px"><input type="checkbox" id="ub" checked>' +
+          'Remove the paper background</label>' +
+        '<div class="preview" id="uprev"><span class="note">Photograph your signature on white paper</span></div></div>' +
+    '</div>' +
+    '<div class="mfoot">' +
+      (isInit ? '' : '<label class="chk"><input type="checkbox" id="rem" checked>Remember on this device</label>') +
+      '<div class="spacer"></div><button class="btn" id="cancel">Cancel</button>' +
+      '<button class="btn primary" id="apply">Apply</button></div>', true);
+
+  const pad = S.makePad(m.querySelector('#pad'));
+  let tab = 'draw', typed = null, uploaded = null;
+  m.querySelectorAll('.tab').forEach(b => b.onclick = () => {
+    tab = b.dataset.t;
+    m.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b));
+    m.querySelectorAll('[data-p]').forEach(p => p.classList.toggle('hidden', p.dataset.p !== tab));
+    if (tab === 'draw') pad.resize();
+    if (tab === 'type') renderTyped();
+  });
+  m.querySelector('#clr').onclick = () => pad.clear();
+
+  const FONTS = ['"Dancing Script",cursive', '"Great Vibes",cursive', '"Caveat",cursive',
+                 '"Brush Script MT","Segoe Script",cursive'];
+  let fi = 0;
+  const fw = m.querySelector('#fonts');
+  FONTS.forEach((f, i) => {
+    const b = document.createElement('button');
+    b.className = 'fontpick' + (i === 0 ? ' on' : '');
+    b.style.fontFamily = f; b.textContent = 'Abc';
+    b.onclick = () => { fi = i; fw.querySelectorAll('.fontpick').forEach((x, j) => x.classList.toggle('on', j === i)); renderTyped(); };
+    fw.appendChild(b);
+  });
+  function renderTyped(){
+    typed = S.typedSignature(m.querySelector('#tv').value, FONTS[fi]);
+    m.querySelector('#tprev').innerHTML = typed ? '<img src="' + typed + '" alt="">' :
+      '<span class="note">Type your name above</span>';
+  }
+  m.querySelector('#tv').addEventListener('input', renderTyped);
+
+  const uf = m.querySelector('#uf'), ub = m.querySelector('#ub');
+  async function doUpload(){
+    if (!uf.files || !uf.files[0]) return;
+    uploaded = await S.cleanUpload(uf.files[0], ub.checked);
+    m.querySelector('#uprev').innerHTML = '<img src="' + uploaded + '" alt="">';
+  }
+  uf.onchange = doUpload; ub.onchange = doUpload;
+
+  m.querySelector('#cancel').onclick = () => m.remove();
+  m.querySelector('#apply').onclick = () => {
+    let out = tab === 'draw' ? pad.toDataURL() : tab === 'type' ? typed : uploaded;
+    if (!out){ S.toast('Nothing to apply yet'); return; }
+    const rem = m.querySelector('#rem');
+    m.remove();
+    cb(out, rem ? rem.checked : false);
+  };
+  setTimeout(() => pad.resize(), 30);
+}
+
+/* ---------------- keyboard ---------------- */
+function bindKeys(){
+  document.addEventListener('keydown', e => {
+    const t = e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
+    if (e.key === 'Escape'){ A.armed = null; A.sel = null; drawChrome(); return; }
+    if (!A.sel || A.step !== 2) return;
+    const f = fieldOf(A.sel);
+    if (!f) return;
+    if (e.key === 'Delete' || e.key === 'Backspace'){
+      e.preventDefault();
+      A.doc.fields = A.doc.fields.filter(x => x.id !== f.id);
+      A.sel = null; drawChrome(); return;
+    }
+    const step = e.shiftKey ? 0.01 : 0.002;
+    const map = {ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step]};
+    if (map[e.key]){
+      e.preventDefault();
+      f.x = S.clamp(f.x + map[e.key][0], 0, 1 - f.w);
+      f.y = S.clamp(f.y + map[e.key][1], 0, 1 - f.h);
+      const el = document.querySelector('.fld[data-id="' + f.id + '"]');
+      if (el){ el.style.left = (f.x*100) + '%'; el.style.top = (f.y*100) + '%'; }
+    }
+  });
+}
+
+renderStart();
+})();
+</script>
+</body>
+</html>
